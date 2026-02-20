@@ -1,0 +1,46 @@
+class Post {
+  final String id;
+  final String userId;
+  final String content;
+  final String? imageUrl;
+  final String visibility;
+  final String? locationName;
+  final double latitude;
+  final double longitude;
+  final DateTime createdAt;
+
+  final String? authorName;
+  final String? authorType;
+
+  Post({
+    required this.id,
+    required this.userId,
+    required this.content,
+    required this.visibility,
+    required this.latitude,
+    required this.longitude,
+    required this.createdAt,
+    this.imageUrl,
+    this.locationName,
+    this.authorName,
+    this.authorType,
+  });
+
+  factory Post.fromMap(Map<String, dynamic> map) {
+    final profile = map['profiles'];
+
+    return Post(
+      id: map['id'] as String,
+      userId: map['user_id'] as String,
+      content: map['content'] as String,
+      imageUrl: map['image_url'] as String?,
+      visibility: map['visibility'] as String,
+      locationName: map['location_name'] as String?,
+      latitude: (map['latitude'] as num).toDouble(),
+      longitude: (map['longitude'] as num).toDouble(),
+      createdAt: DateTime.parse(map['created_at'] as String),
+      authorName: profile is Map ? profile['full_name'] as String? : null,
+      authorType: profile is Map ? profile['account_type'] as String? : null,
+    );
+  }
+}

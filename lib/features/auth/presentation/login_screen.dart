@@ -33,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _email.text.trim(),
         password: _password.text,
       );
-      if (mounted) context.go('/home');
+      if (mounted) context.go('/feed');
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

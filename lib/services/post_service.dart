@@ -79,7 +79,7 @@ if (user == null) throw Exception('Not logged in');
 // 🔹 Fetch profile type
 final profile = await _db
     .from('profiles')
-    .select('profile_type')
+    .select('profile_type, account_type')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -87,7 +87,7 @@ final authorType =
     (profile?['profile_type'] as String?) ??
     (profile?['account_type'] as String?) ??
     'person';
-    
+
 // 🔹 Insert post
 await _db.from('posts').insert({
   'user_id': user.id,
@@ -104,14 +104,74 @@ await _db.from('posts').insert({
 }
 
 
-  Future<List<Map<String, dynamic>>> fetchPublicFeed({int limit = 50}) async {
-    final res = await _db
+  Future<List<Map<String, dynamic>>> fetchPublicFeed({
+  int limit = 50,
+  String postType = 'all',
+  String authorType = 'all',
+  String scope = 'all', // ✅ 'all' or 'following'
+}) async {
+  final user = _db.auth.currentUser; // can be null if logged out
+
+  var query = await _db
+      .from('posts')
+      .select('*, profiles(full_name)')
+      .eq('visibility', 'public')
+      .order('created_at', ascending: false)
+      .limit(limit);
+
+  // ✅ Filter by post type
+  if (postType != 'all') {
+    query = await _db
         .from('posts')
-        .select('*, profiles(full_name, account_type)')
+        .select('*, profiles(full_name)')
         .eq('visibility', 'public')
+        .eq('post_type', postType)
         .order('created_at', ascending: false)
         .limit(limit);
-
-    return (res as List).cast<Map<String, dynamic>>();
   }
+
+  // ✅ Filter by author type
+  if (authorType != 'all') {
+    query = await _db
+        .from('posts')
+        .select('*, profiles(full_name)')
+        .eq('visibility', 'public')
+        .eq('author_profile_type', authorType)
+        .order('created_at', ascending: false)
+        .limit(limit);
+  }
+
+  // ✅ Following scope (only show posts whose user_id is in followed profiles)
+  if (scope == 'following') {
+    if (user == null) {
+      // Not logged in: no following feed
+      return <Map<String, dynamic>>[];
+    }
+
+    // 1) get followed profile ids
+    final followed = await _db
+        .from('follows')
+        .select('followed_profile_id')
+        .eq('follower_id', user.id);
+
+    final ids = (followed as List)
+        .map((e) => e['followed_profile_id'] as String?)
+        .whereType<String>()
+        .toList();
+
+    if (ids.isEmpty) return <Map<String, dynamic>>[];
+
+    // 2) posts.user_id references profiles.id in your setup (same uuid)
+    query = await _db
+        .from('posts')
+        .select('*, profiles(full_name)')
+        .eq('visibility', 'public')
+        .inFilter('user_id', ids)
+        .order('created_at', ascending: false)
+        .limit(limit);
+  }
+
+  return (query as List).cast<Map<String, dynamic>>();
+}
+
 }

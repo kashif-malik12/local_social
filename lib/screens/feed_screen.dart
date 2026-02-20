@@ -17,6 +17,11 @@ class _FeedScreenState extends State<FeedScreen> {
   String? _error;
   List<Post> _posts = [];
 
+  // ✅ Filters
+  String _selectedScope = 'all'; // 'all' or 'following'
+  String _selectedPostType = 'all';
+  String _selectedAuthorType = 'all';
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -25,7 +30,12 @@ class _FeedScreenState extends State<FeedScreen> {
 
     try {
       final service = PostService(Supabase.instance.client);
-      final raw = await service.fetchPublicFeed();
+
+      final raw = await service.fetchPublicFeed(
+        scope: _selectedScope,
+        postType: _selectedPostType,
+        authorType: _selectedAuthorType,
+      );
 
       setState(() {
         _posts = raw.map((e) => Post.fromMap(e)).toList();
@@ -36,19 +46,13 @@ class _FeedScreenState extends State<FeedScreen> {
         _posts = [];
       });
     } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  // Helper method to determine if the author is a special type that requires a badge
   String? _getAuthorBadgeType(Post post) {
-    if (post.authorType == 'business') {
-      return 'BUSINESS';
-    } else if (post.authorType == 'org') {
-      return 'ORG';
-    }
+    if (post.authorType == 'business') return 'BUSINESS';
+    if (post.authorType == 'org') return 'ORG';
     return null;
   }
 
@@ -58,21 +62,92 @@ class _FeedScreenState extends State<FeedScreen> {
     _load();
   }
 
+  Widget _buildFilters() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          // ✅ Scope: All vs Following
+          DropdownButton<String>(
+            value: _selectedScope,
+            items: const [
+              DropdownMenuItem(value: 'all', child: Text('Public (All)')),
+              DropdownMenuItem(value: 'following', child: Text('Following')),
+            ],
+            onChanged: (v) {
+              if (v == null) return;
+              setState(() => _selectedScope = v);
+              _load();
+            },
+          ),
+
+          // Post Type
+          DropdownButton<String>(
+            value: _selectedPostType,
+            items: const [
+              DropdownMenuItem(value: 'all', child: Text('All posts')),
+              DropdownMenuItem(value: 'post', child: Text('General')),
+              DropdownMenuItem(value: 'market', child: Text('Market')),
+              DropdownMenuItem(value: 'service_offer', child: Text('Service offer')),
+              DropdownMenuItem(value: 'service_request', child: Text('Service request')),
+              DropdownMenuItem(value: 'lost_found', child: Text('Lost & found')),
+            ],
+            onChanged: (v) {
+              if (v == null) return;
+              setState(() => _selectedPostType = v);
+              _load();
+            },
+          ),
+
+          // Author Type
+          DropdownButton<String>(
+            value: _selectedAuthorType,
+            items: const [
+              DropdownMenuItem(value: 'all', child: Text('All authors')),
+              DropdownMenuItem(value: 'person', child: Text('People')),
+              DropdownMenuItem(value: 'business', child: Text('Businesses')),
+              DropdownMenuItem(value: 'org', child: Text('Organizations')),
+            ],
+            onChanged: (v) {
+              if (v == null) return;
+              setState(() => _selectedAuthorType = v);
+              _load();
+            },
+          ),
+
+          // Reset
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _selectedScope = 'all';
+                _selectedPostType = 'all';
+                _selectedAuthorType = 'all';
+              });
+              _load();
+            },
+            icon: const Icon(Icons.refresh),
+            label: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-     appBar: AppBar(
-  title: const Text('Local Feed ✅'),
-  actions: [
-    IconButton(
-      icon: const Icon(Icons.person),
-      onPressed: () {
-        context.go('/profile');
-      },
-    ),
-  ],
-),
-
+      appBar: AppBar(
+        title: const Text('Local Feed ✅'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person),
+            onPressed: () => context.go('/profile'),
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -85,9 +160,11 @@ class _FeedScreenState extends State<FeedScreen> {
               : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView.builder(
-                    itemCount: _posts.length,
+                    itemCount: _posts.length + 1,
                     itemBuilder: (_, i) {
-                      final p = _posts[i];
+                      if (i == 0) return _buildFilters();
+
+                      final p = _posts[i - 1];
                       final badgeText = _getAuthorBadgeType(p);
 
                       return Card(
@@ -112,10 +189,7 @@ class _FeedScreenState extends State<FeedScreen> {
                                         borderRadius: BorderRadius.circular(20),
                                         border: Border.all(),
                                       ),
-                                      child: Text(
-                                        badgeText, 
-                                        style: const TextStyle(fontSize: 12)
-                                      ),
+                                      child: Text(badgeText, style: const TextStyle(fontSize: 12)),
                                     ),
                                 ],
                               ),
@@ -130,14 +204,8 @@ class _FeedScreenState extends State<FeedScreen> {
                               ],
                               const SizedBox(height: 8),
                               if (p.locationName != null)
-                                Text(
-                                  '📍 ${p.locationName}',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              Text(
-                                p.createdAt.toLocal().toString(),
-                                style: const TextStyle(fontSize: 12),
-                              ),
+                                Text('📍 ${p.locationName}', style: const TextStyle(fontSize: 12)),
+                              Text(p.createdAt.toLocal().toString(), style: const TextStyle(fontSize: 12)),
                             ],
                           ),
                         ),

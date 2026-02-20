@@ -210,6 +210,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: ListView(
           children: [
+            // ignore: deprecated_member_use
             DropdownButtonFormField<String>(
               value: _accountType,
               items: const [
@@ -231,6 +232,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             const SizedBox(height: 12),
 
             if (_accountType == 'org') ...[
+              // ignore: deprecated_member_use
               DropdownButtonFormField<String>(
                 value: _orgKind,
                 items: const [
@@ -293,6 +295,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               ),
 
             const SizedBox(height: 12),
+            // ignore: deprecated_member_use
             DropdownButtonFormField<int>(
               value: _radiusKm,
               items: const [

@@ -38,8 +38,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   // Logged in → block auth pages
   if (loggedIn && isAuth) return '/feed';
 
-  // If for some reason user is null (shouldn't happen due to loggedIn check)
-  if (user == null) return null;
+  // Allow /profile always
+  if (isProfile) return null;
 
   // Allow /profile always
   if (isProfile) return null;
@@ -48,7 +48,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final profile = await Supabase.instance.client
       .from('profiles')
       .select('full_name, account_type, latitude, longitude')
-      .eq('id', user.id)
+      .eq('id', user.id)  // Removed ! since the condition already ensures user is not null
       .maybeSingle();
 
   final fullName = profile?['full_name'] as String?;

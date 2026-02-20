@@ -148,6 +148,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             ),
             const SizedBox(height: 12),
 
+              // ignore: deprecated_member_use
               DropdownButtonFormField<PostType>(
                 value: _selectedPostType,
                 items: PostType.values.map((t) {
@@ -164,6 +165,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               ),
               const SizedBox(height: 12),
 
+            // ignore: deprecated_member_use
             DropdownButtonFormField<String>(
               value: _visibility,
               items: const [

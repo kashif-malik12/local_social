@@ -12,6 +12,9 @@ class Post {
   final String? authorName;
   final String? authorType;
 
+  // ✅ NEW: post type filter support
+  final String? postType;
+
   Post({
     required this.id,
     required this.userId,
@@ -24,6 +27,7 @@ class Post {
     this.locationName,
     this.authorName,
     this.authorType,
+    this.postType,
   });
 
   factory Post.fromMap(Map<String, dynamic> map) {
@@ -34,13 +38,14 @@ class Post {
       userId: map['user_id'] as String,
       content: map['content'] as String,
       imageUrl: map['image_url'] as String?,
-      visibility: map['visibility'] as String,
+      visibility: (map['visibility'] as String?) ?? 'public',
       locationName: map['location_name'] as String?,
-      latitude: (map['latitude'] as num).toDouble(),
-      longitude: (map['longitude'] as num).toDouble(),
+      latitude: ((map['latitude'] as num?) ?? 0).toDouble(),
+      longitude: ((map['longitude'] as num?) ?? 0).toDouble(),
       createdAt: DateTime.parse(map['created_at'] as String),
       authorName: profile is Map ? profile['full_name'] as String? : null,
-      authorType: profile is Map ? profile['account_type'] as String? : null,
+      authorType: map['author_profile_type'] as String?,
+      postType: map['post_type'] as String?,
     );
   }
 }

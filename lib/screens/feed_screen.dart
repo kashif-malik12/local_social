@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/post_model.dart';
 import '../services/post_service.dart';
+import '../services/reaction_service.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -21,6 +22,13 @@ class _FeedScreenState extends State<FeedScreen> {
   String _selectedScope = 'all'; // 'all' or 'following'
   String _selectedPostType = 'all';
   String _selectedAuthorType = 'all';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -49,16 +57,58 @@ class _FeedScreenState extends State<FeedScreen> {
     }
   }
 
+  // ✅ Likes + comments row (must be a class method, not inside _load)
+  Widget _buildReactionsRow(Post p) {
+    final react = ReactionService(Supabase.instance.client);
+
+    return FutureBuilder<List<dynamic>>(
+      future: Future.wait([
+        react.isLiked(p.id),
+        react.likesCount(p.id),
+        react.commentsCount(p.id),
+      ]),
+      builder: (context, snap) {
+        final liked = snap.hasData ? snap.data![0] as bool : false;
+        final likeCount = snap.hasData ? snap.data![1] as int : 0;
+        final commentCount = snap.hasData ? snap.data![2] as int : 0;
+
+        return Row(
+          children: [
+            TextButton.icon(
+              onPressed: () async {
+                try {
+                  if (liked) {
+                    await react.unlike(p.id);
+                  } else {
+                    await react.like(p.id);
+                  }
+                  if (mounted) setState(() {}); // refresh this FutureBuilder
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Like error: $e')),
+                  );
+                }
+              },
+              icon: Icon(liked ? Icons.favorite : Icons.favorite_border),
+              label: Text('$likeCount'),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: () => context.push('/post/${p.id}/comments'),
+              icon: const Icon(Icons.comment_outlined),
+              label: Text('$commentCount'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   String? _getAuthorBadgeType(Post post) {
     if (post.authorType == 'business') return 'BUSINESS';
     if (post.authorType == 'org') return 'ORG';
     return null;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
   }
 
   Widget _buildFilters() {
@@ -203,6 +253,7 @@ class _FeedScreenState extends State<FeedScreen> {
 
                               const SizedBox(height: 6),
                               Text(p.content),
+
                               if (p.imageUrl != null) ...[
                                 const SizedBox(height: 10),
                                 ClipRRect(
@@ -210,6 +261,10 @@ class _FeedScreenState extends State<FeedScreen> {
                                   child: Image.network(p.imageUrl!, fit: BoxFit.cover),
                                 ),
                               ],
+
+                              const SizedBox(height: 6),
+                              _buildReactionsRow(p),
+
                               const SizedBox(height: 8),
                               if (p.locationName != null)
                                 Text('📍 ${p.locationName}', style: const TextStyle(fontSize: 12)),

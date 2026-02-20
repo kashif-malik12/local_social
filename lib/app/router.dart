@@ -11,6 +11,8 @@ import '../features/profile/presentation/profile_detail_screen.dart'; // ✅ NEW
 import '../screens/feed_screen.dart';
 import '../screens/create_post_screen.dart';
 import '../features/profile/presentation/follow_list_screen.dart';
+import '../screens/comments_screen.dart';
+
 
 
 
@@ -97,6 +99,13 @@ GoRoute(
   builder: (context, state) {
     final id = state.pathParameters['id']!;
     return FollowListScreen(profileId: id, mode: FollowListMode.following);
+  },
+),
+GoRoute(
+  path: '/post/:id/comments',
+  builder: (context, state) {
+    final id = state.pathParameters['id']!;
+    return CommentsScreen(postId: id);
   },
 ),
 

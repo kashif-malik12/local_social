@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../models/post_model.dart';
-import 'package:go_router/go_router.dart';
-
+import '../../../services/reaction_service.dart';
 
 class ProfileDetailScreen extends StatefulWidget {
   final String profileId; // ✅ in your app this equals auth uid
@@ -73,18 +73,14 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         _isFollowing = false;
       }
 
-      // ✅ Followers count
-      final followersRows = await _db
-          .from('follows')
-          .select('id')
-          .eq('followed_profile_id', widget.profileId);
+      // ✅ Followers count (simple & compatible)
+      final followersRows =
+          await _db.from('follows').select('id').eq('followed_profile_id', widget.profileId);
       _followersCount = (followersRows as List).length;
 
-      // ✅ Following count
-      final followingRows = await _db
-          .from('follows')
-          .select('id')
-          .eq('follower_id', widget.profileId);
+      // ✅ Following count (how many this profile follows)
+      final followingRows =
+          await _db.from('follows').select('id').eq('follower_id', widget.profileId);
       _followingCount = (followingRows as List).length;
     } catch (e) {
       _error = e.toString();
@@ -100,19 +96,18 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     });
 
     try {
-      // ✅ Select posts for this profile/user
-      // We include profiles(full_name) so Post.fromMap keeps working (it expects map['profiles']).
+      // Include profiles(full_name) so Post.fromMap continues to work.
       final rows = await _db
           .from('posts')
           .select('*, profiles(full_name)')
           .eq('user_id', widget.profileId)
           .order('created_at', ascending: false);
 
-      final list = (rows as List).map((e) => Post.fromMap(e as Map<String, dynamic>)).toList();
+      final list = (rows as List)
+          .map((e) => Post.fromMap(e as Map<String, dynamic>))
+          .toList();
 
-      if (mounted) {
-        setState(() => _posts = list);
-      }
+      if (mounted) setState(() => _posts = list);
     } catch (e) {
       if (mounted) setState(() => _postsError = e.toString());
     } finally {
@@ -157,6 +152,54 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     }
   }
 
+  // ✅ Likes + Comments row (for each post)
+  Widget _buildReactionsRow(Post p) {
+    final react = ReactionService(Supabase.instance.client);
+
+    return FutureBuilder<List<dynamic>>(
+      future: Future.wait([
+        react.isLiked(p.id),
+        react.likesCount(p.id),
+        react.commentsCount(p.id),
+      ]),
+      builder: (context, snap) {
+        final liked = snap.hasData ? snap.data![0] as bool : false;
+        final likeCount = snap.hasData ? snap.data![1] as int : 0;
+        final commentCount = snap.hasData ? snap.data![2] as int : 0;
+
+        return Row(
+          children: [
+            TextButton.icon(
+              onPressed: () async {
+                try {
+                  if (liked) {
+                    await react.unlike(p.id);
+                  } else {
+                    await react.like(p.id);
+                  }
+                  if (mounted) setState(() {});
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Like error: $e')),
+                  );
+                }
+              },
+              icon: Icon(liked ? Icons.favorite : Icons.favorite_border),
+              label: Text('$likeCount'),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: () => context.push('/post/${p.id}/comments'),
+              icon: const Icon(Icons.comment_outlined),
+              label: Text('$commentCount'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading && _profile == null) {
@@ -195,25 +238,25 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             ],
             const SizedBox(height: 16),
 
-           Row(
-  children: [
-    Expanded(
-      child: InkWell(
-        onTap: () => context.push('/p/${widget.profileId}/followers'),
-        borderRadius: BorderRadius.circular(12),
-        child: _StatTile(label: 'Followers', value: _followersCount),
-      ),
-    ),
-    const SizedBox(width: 12),
-    Expanded(
-      child: InkWell(
-        onTap: () => context.push('/p/${widget.profileId}/following'),
-        borderRadius: BorderRadius.circular(12),
-        child: _StatTile(label: 'Following', value: _followingCount),
-      ),
-    ),
-  ],
-),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => context.push('/p/${widget.profileId}/followers'),
+                    borderRadius: BorderRadius.circular(12),
+                    child: _StatTile(label: 'Followers', value: _followersCount),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => context.push('/p/${widget.profileId}/following'),
+                    borderRadius: BorderRadius.circular(12),
+                    child: _StatTile(label: 'Following', value: _followingCount),
+                  ),
+                ),
+              ],
+            ),
 
             const SizedBox(height: 16),
             if (!_isMe)
@@ -261,7 +304,36 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 child: Text('No posts yet.'),
               )
             else
-              ..._posts.map(_PostCard.new),
+              ..._posts.map(
+                (p) => Card(
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(p.content),
+                        if (p.imageUrl != null) ...[
+                          const SizedBox(height: 10),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(p.imageUrl!, fit: BoxFit.cover),
+                          ),
+                        ],
+                        const SizedBox(height: 6),
+                        _buildReactionsRow(p),
+                        const SizedBox(height: 8),
+                        if (p.locationName != null)
+                          Text('📍 ${p.locationName}', style: const TextStyle(fontSize: 12)),
+                        Text(
+                          p.createdAt.toLocal().toString(),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -276,55 +348,18 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).dividerColor),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Text('$value', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 4),
-            Text(label),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).dividerColor),
+        borderRadius: BorderRadius.circular(12),
       ),
-    );
-  }
-}
-
-class _PostCard extends StatelessWidget {
-  final Post p;
-  const _PostCard(this.p);
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(p.content),
-            if (p.imageUrl != null) ...[
-              const SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(p.imageUrl!, fit: BoxFit.cover),
-              ),
-            ],
-            const SizedBox(height: 8),
-            if (p.locationName != null)
-              Text('📍 ${p.locationName}', style: const TextStyle(fontSize: 12)),
-            Text(
-              p.createdAt.toLocal().toString(),
-              style: const TextStyle(fontSize: 12),
-            ),
-          ],
-        ),
+      child: Column(
+        children: [
+          Text('$value', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 4),
+          Text(label),
+        ],
       ),
     );
   }

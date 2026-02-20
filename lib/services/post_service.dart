@@ -65,26 +65,29 @@ class PostService {
   }
 
   Future<void> createPost({
-    required String content,
-    required String visibility,
-    required double latitude,
-    required double longitude,
-    String? locationName,
-    String? imageUrl,
-  }) async {
-    final user = _db.auth.currentUser;
-    if (user == null) throw Exception('Not logged in');
+  required String content,
+  required String visibility,
+  required double latitude,
+  required double longitude,
+  String? locationName,
+  String? imageUrl,
+  required String postType,
+}) async {
+  final user = _db.auth.currentUser;
+  if (user == null) throw Exception('Not logged in');
 
-    await _db.from('posts').insert({
-      'user_id': user.id,
-      'content': content,
-      'visibility': visibility,
-      'latitude': latitude,
-      'longitude': longitude,
-      'location_name': locationName,
-      'image_url': imageUrl,
-    });
-  }
+  await _db.from('posts').insert({
+    'user_id': user.id,
+    'content': content,
+    'visibility': visibility,
+    'latitude': latitude,
+    'longitude': longitude,
+    'location_name': locationName,
+    'image_url': imageUrl,
+    'post_type': postType, // ✅ ADD THIS LINE
+  });
+}
+
 
   Future<List<Map<String, dynamic>>> fetchPublicFeed({int limit = 50}) async {
     final res = await _db

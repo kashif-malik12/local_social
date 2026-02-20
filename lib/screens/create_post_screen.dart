@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../core/post_types.dart';
 import '../services/post_service.dart';
 
 class CreatePostScreen extends StatefulWidget {
@@ -15,6 +15,8 @@ class CreatePostScreen extends StatefulWidget {
 class _CreatePostScreenState extends State<CreatePostScreen> {
   final _contentCtrl = TextEditingController();
   String _visibility = 'public';
+
+  PostType _selectedPostType = PostType.post;
 
   XFile? _imageXFile;
   bool _loading = false;
@@ -113,6 +115,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         longitude: lng.toDouble(),
         locationName: city,
         imageUrl: imageUrl,
+        postType: _selectedPostType.dbValue,
       );
 
       if (mounted) Navigator.pop(context, true);
@@ -144,6 +147,22 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               ),
             ),
             const SizedBox(height: 12),
+
+              DropdownButtonFormField<PostType>(
+                value: _selectedPostType,
+                items: PostType.values.map((t) {
+                  return DropdownMenuItem(
+                    value: t,
+                    child: Text(t.label),
+                  );
+                }).toList(),
+                onChanged: (v) => setState(() => _selectedPostType = v ?? PostType.post),
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Post category',
+                ),
+              ),
+              const SizedBox(height: 12),
 
             DropdownButtonFormField<String>(
               value: _visibility,

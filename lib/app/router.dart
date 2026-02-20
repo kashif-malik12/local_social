@@ -7,8 +7,11 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/profile/presentation/complete_profile_screen.dart';
+import '../features/profile/presentation/profile_detail_screen.dart'; // ✅ NEW
 import '../screens/feed_screen.dart';
 import '../screens/create_post_screen.dart';
+import '../features/profile/presentation/follow_list_screen.dart';
+
 
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -18,58 +21,53 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/login',
     refreshListenable: GoRouterRefreshStream(auth.onAuthStateChange),
     redirect: (context, state) async {
-  final auth = Supabase.instance.client.auth;
+      final auth = Supabase.instance.client.auth;
 
-  final session = auth.currentSession;
-  final user = auth.currentUser; // <-- can be null even when session != null
+      final session = auth.currentSession;
+      final user = auth.currentUser;
 
-  final loggedIn = session != null && user != null;
+      final loggedIn = session != null && user != null;
 
-  final loc = state.matchedLocation;
-  final isAuth = loc == '/login' || loc == '/register';
-  final isOnboarding = loc == '/complete-profile';
-  final isProfile = loc == '/profile';
+      final loc = state.matchedLocation;
+      final isAuth = loc == '/login' || loc == '/register';
+      final isOnboarding = loc == '/complete-profile';
+      final isProfile = loc == '/profile';
 
-  // Not logged in → must be on auth pages
-  if (!loggedIn) {
-    return isAuth ? null : '/login';
-  }
+      // Not logged in → must be on auth pages
+      if (!loggedIn) {
+        return isAuth ? null : '/login';
+      }
 
-  // Logged in → block auth pages
-  if (loggedIn && isAuth) return '/feed';
+      // Logged in → block auth pages
+      if (loggedIn && isAuth) return '/feed';
 
-  // Allow /profile always
-  if (isProfile) return null;
+      // Allow /profile always
+      if (isProfile) return null;
 
-  // Allow /profile always
-  if (isProfile) return null;
+      // Check profile completeness
+      final profile = await Supabase.instance.client
+          .from('profiles')
+          .select('full_name, account_type, latitude, longitude')
+          .eq('id', user.id)
+          .maybeSingle();
 
-  // Check profile completeness
-  final profile = await Supabase.instance.client
-      .from('profiles')
-      .select('full_name, account_type, latitude, longitude')
-      .eq('id', user.id)  // Removed ! since the condition already ensures user is not null
-      .maybeSingle();
+      final fullName = profile?['full_name'] as String?;
+      final accountType = profile?['account_type'] as String?;
+      final lat = (profile?['latitude'] as num?)?.toDouble();
+      final lng = (profile?['longitude'] as num?)?.toDouble();
 
-  final fullName = profile?['full_name'] as String?;
-  final accountType = profile?['account_type'] as String?;
-  final lat = (profile?['latitude'] as num?)?.toDouble();
-  final lng = (profile?['longitude'] as num?)?.toDouble();
+      final incomplete = fullName == null ||
+          fullName.trim().isEmpty ||
+          accountType == null ||
+          lat == null ||
+          lng == null;
 
-  final incomplete =
-      fullName == null || fullName.trim().isEmpty ||
-      accountType == null ||
-      lat == null || lng == null;
-
-  if (incomplete) {
-    return isOnboarding ? null : '/complete-profile';
-  } else {
-    return isOnboarding ? '/feed' : null;
-  }
-},
-
-
-
+      if (incomplete) {
+        return isOnboarding ? null : '/complete-profile';
+      } else {
+        return isOnboarding ? '/feed' : null;
+      }
+    },
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
@@ -78,6 +76,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/feed', builder: (context, state) => const FeedScreen()),
       GoRoute(path: '/create-post', builder: (context, state) => const CreatePostScreen()),
       GoRoute(path: '/profile', builder: (context, state) => const CompleteProfileScreen()),
+
+      // ✅ NEW: visit any profile (your schema: profile id == auth uid)
+      GoRoute(
+        path: '/p/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return ProfileDetailScreen(profileId: id);
+        },
+      ),
+      GoRoute(
+  path: '/p/:id/followers',
+  builder: (context, state) {
+    final id = state.pathParameters['id']!;
+    return FollowListScreen(profileId: id, mode: FollowListMode.followers);
+  },
+),
+GoRoute(
+  path: '/p/:id/following',
+  builder: (context, state) {
+    final id = state.pathParameters['id']!;
+    return FollowListScreen(profileId: id, mode: FollowListMode.following);
+  },
+),
 
     ],
   );

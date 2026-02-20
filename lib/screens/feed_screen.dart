@@ -21,7 +21,6 @@ class _FeedScreenState extends State<FeedScreen> {
   String _selectedScope = 'all'; // 'all' or 'following'
   String _selectedPostType = 'all';
   String _selectedAuthorType = 'all';
-
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -174,25 +173,34 @@ class _FeedScreenState extends State<FeedScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      p.authorName ?? 'Unknown',
-                                      style: const TextStyle(fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                  if (badgeText != null)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(),
+                              // ✅ Click author row → open profile
+                              InkWell(
+                                onTap: () => context.push('/p/${p.userId}'),
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          p.authorName ?? 'Unknown',
+                                          style: const TextStyle(fontWeight: FontWeight.bold),
+                                        ),
                                       ),
-                                      child: Text(badgeText, style: const TextStyle(fontSize: 12)),
-                                    ),
-                                ],
+                                      if (badgeText != null)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(20),
+                                            border: Border.all(),
+                                          ),
+                                          child: Text(badgeText, style: const TextStyle(fontSize: 12)),
+                                        ),
+                                    ],
+                                  ),
+                                ),
                               ),
+
                               const SizedBox(height: 6),
                               Text(p.content),
                               if (p.imageUrl != null) ...[

@@ -73,19 +73,34 @@ class PostService {
   String? imageUrl,
   required String postType,
 }) async {
-  final user = _db.auth.currentUser;
-  if (user == null) throw Exception('Not logged in');
+ final user = _db.auth.currentUser;
+if (user == null) throw Exception('Not logged in');
 
-  await _db.from('posts').insert({
-    'user_id': user.id,
-    'content': content,
-    'visibility': visibility,
-    'latitude': latitude,
-    'longitude': longitude,
-    'location_name': locationName,
-    'image_url': imageUrl,
-    'post_type': postType, // ✅ ADD THIS LINE
-  });
+// 🔹 Fetch profile type
+final profile = await _db
+    .from('profiles')
+    .select('profile_type')
+    .eq('id', user.id)
+    .maybeSingle();
+
+final authorType =
+    (profile?['profile_type'] as String?) ??
+    (profile?['account_type'] as String?) ??
+    'person';
+    
+// 🔹 Insert post
+await _db.from('posts').insert({
+  'user_id': user.id,
+  'content': content,
+  'visibility': visibility,
+  'latitude': latitude,
+  'longitude': longitude,
+  'location_name': locationName,
+  'image_url': imageUrl,
+  'post_type': postType,
+  'author_profile_type': authorType, // ✅ NEW
+});
+
 }
 
 

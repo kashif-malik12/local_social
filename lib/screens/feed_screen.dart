@@ -42,6 +42,16 @@ class _FeedScreenState extends State<FeedScreen> {
     }
   }
 
+  // Helper method to determine if the author is a special type that requires a badge
+  String? _getAuthorBadgeType(Post post) {
+    if (post.authorType == 'business') {
+      return 'BUSINESS';
+    } else if (post.authorType == 'org') {
+      return 'ORG';
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -78,7 +88,7 @@ class _FeedScreenState extends State<FeedScreen> {
                     itemCount: _posts.length,
                     itemBuilder: (_, i) {
                       final p = _posts[i];
-                      final isBiz = p.authorType == 'business';
+                      final badgeText = _getAuthorBadgeType(p);
 
                       return Card(
                         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -95,14 +105,17 @@ class _FeedScreenState extends State<FeedScreen> {
                                       style: const TextStyle(fontWeight: FontWeight.bold),
                                     ),
                                   ),
-                                  if (isBiz)
+                                  if (badgeText != null)
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(20),
                                         border: Border.all(),
                                       ),
-                                      child: const Text('BUSINESS', style: TextStyle(fontSize: 12)),
+                                      child: Text(
+                                        badgeText, 
+                                        style: const TextStyle(fontSize: 12)
+                                      ),
                                     ),
                                 ],
                               ),

@@ -37,7 +37,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (res.user == null) throw 'Sign up failed';
 
-      if (mounted) context.go('/complete-profile');
+      if (mounted) context.go('/home');
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

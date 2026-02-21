@@ -10,10 +10,12 @@ class Post {
   final DateTime createdAt;
 
   final String? authorName;
+  final String? authorAvatarUrl;
   final String? authorType;
 
   // ✅ NEW: post type filter support
   final String? postType;
+   final double? distanceKm;
 
   Post({
     required this.id,
@@ -26,8 +28,10 @@ class Post {
     this.imageUrl,
     this.locationName,
     this.authorName,
+    this.authorAvatarUrl,
     this.authorType,
     this.postType,
+    this.distanceKm,
   });
 
   factory Post.fromMap(Map<String, dynamic> map) {
@@ -44,8 +48,10 @@ class Post {
       longitude: ((map['longitude'] as num?) ?? 0).toDouble(),
       createdAt: DateTime.parse(map['created_at'] as String),
       authorName: profile is Map ? profile['full_name'] as String? : null,
+      authorAvatarUrl: profile is Map ? profile['avatar_url'] as String? : null,
       authorType: map['author_profile_type'] as String?,
       postType: map['post_type'] as String?,
+      distanceKm: (map['distance_km'] as num?)?.toDouble(),
     );
   }
 }

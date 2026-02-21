@@ -259,16 +259,33 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             ),
 
             const SizedBox(height: 16),
-            if (!_isMe)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _toggleFollow,
-                  child: Text(_isFollowing ? 'Unfollow' : 'Follow'),
-                ),
-              )
-            else
-              const Text('This is your profile', textAlign: TextAlign.center),
+           if (!_isMe)
+  SizedBox(
+    width: double.infinity,
+    child: ElevatedButton(
+      onPressed: _loading ? null : _toggleFollow,
+      child: Text(_isFollowing ? 'Unfollow' : 'Follow'),
+    ),
+  )
+else
+  Column(
+    children: [
+      const Text('This is your profile', textAlign: TextAlign.center),
+      const SizedBox(height: 12),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () async {
+            await context.push('/profile/edit');
+            if (!mounted) return;
+            await _loadAll(); // refresh after editing
+          },
+          icon: const Icon(Icons.edit),
+          label: const Text('Edit Profile'),
+        ),
+      ),
+    ],
+  ),
 
             const SizedBox(height: 24),
             const Divider(),

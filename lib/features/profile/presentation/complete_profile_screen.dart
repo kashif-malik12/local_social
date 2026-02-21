@@ -1,10 +1,14 @@
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:geocoding/geocoding.dart';
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../services/profile_service.dart';
 
 class CompleteProfileScreen extends StatefulWidget {
   const CompleteProfileScreen({super.key});
@@ -24,6 +28,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   String _accountType = 'person'; // person | business | org
   String? _orgKind; // government | nonprofit (only when org)
   int _radiusKm = 5;
+
+  // ✅ Avatar
+  final _picker = ImagePicker();
+  String? _avatarUrl;
+  bool _uploadingAvatar = false;
 
   bool _loading = false;
   String? _error;
@@ -50,7 +59,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       final data = await Supabase.instance.client
           .from('profiles')
           .select(
-              'full_name, bio, zipcode, latitude, longitude, profile_type, account_type, org_kind, radius_km')
+            'full_name, bio, zipcode, latitude, longitude, profile_type, account_type, org_kind, radius_km, avatar_url',
+          )
           .eq('id', user.id)
           .maybeSingle();
 
@@ -61,10 +71,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         _bio.text = (data['bio'] as String?) ?? '';
         _zipCtrl.text = (data['zipcode'] as String?) ?? '';
 
+        _avatarUrl = (data['avatar_url'] as String?);
+
         _lat = (data['latitude'] as num?)?.toDouble();
         _lng = (data['longitude'] as num?)?.toDouble();
 
-        // Prefer profile_type; fallback to account_type for older rows
         _accountType = (data['profile_type'] as String?) ??
             (data['account_type'] as String?) ??
             'person';
@@ -75,6 +86,41 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = 'Failed to load profile: $e');
+    }
+  }
+
+  Future<void> _pickAndUploadAvatar() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 75,
+      );
+      if (image == null) return;
+
+      if (!mounted) return;
+      setState(() {
+        _uploadingAvatar = true;
+        _error = null;
+      });
+
+      final svc = ProfileService(Supabase.instance.client);
+      final url = await svc.uploadAvatar(image: image, userId: user.id);
+      await svc.updateAvatarUrl(userId: user.id, avatarUrl: url);
+
+      if (!mounted) return;
+      setState(() => _avatarUrl = url);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Avatar updated ✅')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Avatar upload failed: $e');
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
     }
   }
 
@@ -96,8 +142,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
       if (kIsWeb) {
         final uri = Uri.parse(
-          'https://nominatim.openstreetmap.org/search'
-          '?format=json&country=France&postalcode=$zip&limit=1',
+          'https://nominatim.openstreetmap.org/search?format=json&country=France&postalcode=$zip&limit=1',
         );
 
         final res = await http.get(uri, headers: {
@@ -176,9 +221,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         'full_name': fullName,
         'bio': _bio.text.trim().isEmpty ? null : _bio.text.trim(),
 
-        // keep old + new fields (so nothing breaks)
         'account_type': _accountType,
-        'profile_type': _accountType, // person|business|org
+        'profile_type': _accountType,
         'org_kind': _accountType == 'org' ? _orgKind : null,
 
         'radius_km': _radiusKm,
@@ -186,6 +230,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         'zipcode': zip,
         'latitude': _lat,
         'longitude': _lng,
+
+        // ✅ keep avatar
+        'avatar_url': _avatarUrl,
       };
 
       await Supabase.instance.client.from('profiles').upsert({
@@ -210,7 +257,51 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: ListView(
           children: [
-            // ignore: deprecated_member_use
+            Center(
+              child: Column(
+                children: [
+                  GestureDetector(
+                    onTap: _uploadingAvatar ? null : _pickAndUploadAvatar,
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        CircleAvatar(
+                          radius: 46,
+                          backgroundImage: (_avatarUrl != null && _avatarUrl!.isNotEmpty)
+                              ? NetworkImage(_avatarUrl!)
+                              : null,
+                          child: (_avatarUrl == null || _avatarUrl!.isEmpty)
+                              ? const Icon(Icons.person, size: 46)
+                              : null,
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Theme.of(context).colorScheme.surface,
+                            border: Border.all(color: Theme.of(context).dividerColor),
+                          ),
+                          child: _uploadingAvatar
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.camera_alt, size: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Tap to change avatar',
+                    style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
             DropdownButtonFormField<String>(
               value: _accountType,
               items: const [
@@ -232,12 +323,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             const SizedBox(height: 12),
 
             if (_accountType == 'org') ...[
-              // ignore: deprecated_member_use
               DropdownButtonFormField<String>(
                 value: _orgKind,
                 items: const [
-                  DropdownMenuItem(
-                      value: 'government', child: Text('Government')),
+                  DropdownMenuItem(value: 'government', child: Text('Government')),
                   DropdownMenuItem(value: 'nonprofit', child: Text('Non-profit')),
                 ],
                 onChanged: (v) => setState(() => _orgKind = v),
@@ -290,12 +379,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             ),
             const SizedBox(height: 8),
             if (_lat != null && _lng != null)
-              Text(
-                'Lat/Lng: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}',
-              ),
+              Text('Lat/Lng: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}'),
 
             const SizedBox(height: 12),
-            // ignore: deprecated_member_use
             DropdownButtonFormField<int>(
               value: _radiusKm,
               items: const [
@@ -314,10 +400,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: Colors.red),
-                ),
+                child: Text(_error!, style: const TextStyle(color: Colors.red)),
               ),
 
             SizedBox(

@@ -12,6 +12,7 @@ import '../screens/feed_screen.dart';
 import '../screens/create_post_screen.dart';
 import '../features/profile/presentation/follow_list_screen.dart';
 import '../screens/comments_screen.dart';
+import 'package:local_social/screens/search_screen.dart';
 
 
 
@@ -77,8 +78,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
       GoRoute(path: '/feed', builder: (context, state) => const FeedScreen()),
       GoRoute(path: '/create-post', builder: (context, state) => const CreatePostScreen()),
-      GoRoute(path: '/profile', builder: (context, state) => const CompleteProfileScreen()),
-
+      GoRoute(
+  path: '/profile',
+  builder: (context, state) {
+    final uid = Supabase.instance.client.auth.currentUser!.id;
+    return ProfileDetailScreen(profileId: uid);
+  },
+),
+GoRoute(
+  path: '/profile/edit',
+  builder: (context, state) => const CompleteProfileScreen(),
+),
+GoRoute(
+  path: '/search',
+  builder: (context, state) => const SearchScreen(),
+),
       // ✅ NEW: visit any profile (your schema: profile id == auth uid)
       GoRoute(
         path: '/p/:id',

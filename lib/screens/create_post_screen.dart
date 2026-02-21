@@ -150,7 +150,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
               // ignore: deprecated_member_use
               DropdownButtonFormField<PostType>(
-                value: _selectedPostType,
+                initialValue: _selectedPostType,
                 items: PostType.values.map((t) {
                   return DropdownMenuItem(
                     value: t,
@@ -167,10 +167,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
             // ignore: deprecated_member_use
             DropdownButtonFormField<String>(
-              value: _visibility,
+              initialValue: _visibility,
               items: const [
                 DropdownMenuItem(value: 'public', child: Text('Public')),
-                DropdownMenuItem(value: 'connections', child: Text('Connections (later)')),
+                DropdownMenuItem(value: 'followers', child: Text('followers')),
               ],
               onChanged: (v) => setState(() => _visibility = v ?? 'public'),
               decoration: const InputDecoration(

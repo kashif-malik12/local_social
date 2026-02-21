@@ -84,7 +84,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.all(12),
                           itemCount: _comments.length,
-                          separatorBuilder: (_, __) => const Divider(height: 12),
+                          separatorBuilder: (_, _) => const Divider(height: 12),
                           itemBuilder: (_, i) {
                             final c = _comments[i];
                             final prof = c['profiles'];

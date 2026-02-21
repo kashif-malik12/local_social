@@ -195,7 +195,20 @@ class _FeedScreenState extends State<FeedScreen> {
             icon: const Icon(Icons.person),
             onPressed: () => context.go('/profile'),
           ),
+          IconButton(
+  icon: const Icon(Icons.search),
+  onPressed: () => context.push('/search'),
+),
+          IconButton(
+    icon: const Icon(Icons.logout),
+    onPressed: () async {
+      await Supabase.instance.client.auth.signOut();
+      if (!context.mounted) return;
+      context.go('/login');
+    },
+  ),
         ],
+        
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -231,12 +244,29 @@ class _FeedScreenState extends State<FeedScreen> {
                                   padding: const EdgeInsets.symmetric(vertical: 4),
                                   child: Row(
                                     children: [
+                                      CircleAvatar(
+                                        radius: 18,
+                                        backgroundImage: (p.authorAvatarUrl != null &&
+                                                p.authorAvatarUrl!.isNotEmpty)
+                                            ? NetworkImage(p.authorAvatarUrl!)
+                                            : null,
+                                        child: (p.authorAvatarUrl == null ||
+                                                p.authorAvatarUrl!.isEmpty)
+                                            ? const Icon(Icons.person, size: 18)
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 10),
                                       Expanded(
                                         child: Text(
                                           p.authorName ?? 'Unknown',
                                           style: const TextStyle(fontWeight: FontWeight.bold),
                                         ),
                                       ),
+                                      if (p.distanceKm != null) ...[
+                                        Text('${p.distanceKm!.toStringAsFixed(1)} km',
+                                          style: const TextStyle(fontSize: 12)),
+                                          const SizedBox(width: 8),
+                                        ],
                                       if (badgeText != null)
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

@@ -1,3 +1,14 @@
+// lib/screens/feed_screen.dart
+//
+// ✅ Updated to implement:
+// (1) Unread notifications badge in AppBar
+// (2) Global realtime subscription (starts in FeedScreen initState)
+// - Tap bell => opens /notifications
+// - Badge updates in realtime for inserts on notifications where recipient_id = auth.uid()
+// - When returning from notifications screen, refresh unread count
+
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -23,12 +34,139 @@ class _FeedScreenState extends State<FeedScreen> {
   String _selectedPostType = 'all';
   String _selectedAuthorType = 'all';
 
+  // ✅ Notifications badge + realtime
+  int _unreadNotifs = 0;
+  RealtimeChannel? _notifChannel;
+  Timer? _notifDebounce;
+
   @override
   void initState() {
     super.initState();
     _load();
+    _initNotificationsUnread();
   }
 
+  @override
+  void dispose() {
+    _notifDebounce?.cancel();
+    final ch = _notifChannel;
+    _notifChannel = null;
+    if (ch != null) {
+      Supabase.instance.client.removeChannel(ch);
+    }
+    super.dispose();
+  }
+
+  // -----------------------------
+  // Notifications unread + realtime
+  // -----------------------------
+  Future<void> _initNotificationsUnread() async {
+    await _refreshUnreadNotifs();
+    _subscribeUnreadNotifsRealtime();
+  }
+
+  Future<void> _refreshUnreadNotifs() async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) {
+      if (mounted) setState(() => _unreadNotifs = 0);
+      return;
+    }
+
+    try {
+      final rows = await Supabase.instance.client
+          .from('notifications')
+          .select('id')
+          .eq('recipient_id', uid)
+          .isFilter('read_at', null);
+
+      if (!mounted) return;
+      setState(() => _unreadNotifs = (rows as List).length);
+    } catch (_) {
+      // keep silent; badge not critical to block feed
+    }
+  }
+
+  void _subscribeUnreadNotifsRealtime() {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+
+    // avoid double subscription
+    if (_notifChannel != null) return;
+
+    final db = Supabase.instance.client;
+    final channel = db.channel('notif-unread-$uid');
+
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'notifications',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'recipient_id',
+        value: uid,
+      ),
+      callback: (payload) {
+        // quick bump for instant UX
+        if (mounted) setState(() => _unreadNotifs = _unreadNotifs + 1);
+
+        // debounce a refresh to stay correct in edge cases
+        _notifDebounce?.cancel();
+        _notifDebounce = Timer(const Duration(milliseconds: 450), () {
+          _refreshUnreadNotifs();
+        });
+      },
+    ).subscribe();
+
+    _notifChannel = channel;
+  }
+
+  Widget _notifBell() {
+    return IconButton(
+      tooltip: 'Notifications',
+      onPressed: () async {
+        // ✅ Navigate to your notifications screen route
+        // Make sure you have this route in router.dart:
+        // GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
+        final res = await context.push('/notifications');
+
+        // When user comes back, refresh unread (they may have marked read)
+        // (res can be anything; we refresh regardless)
+        await _refreshUnreadNotifs();
+      },
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.notifications),
+          if (_unreadNotifs > 0)
+            Positioned(
+              right: -6,
+              top: -4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                constraints: const BoxConstraints(minWidth: 18),
+                child: Text(
+                  _unreadNotifs > 99 ? '99+' : _unreadNotifs.toString(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // -----------------------------
+  // Feed load
+  // -----------------------------
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -191,24 +329,33 @@ class _FeedScreenState extends State<FeedScreen> {
       appBar: AppBar(
         title: const Text('Local Feed ✅'),
         actions: [
+          // ✅ Notifications bell with unread badge
+          _notifBell(),
+
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () => context.go('/profile'),
           ),
           IconButton(
-  icon: const Icon(Icons.search),
-  onPressed: () => context.push('/search'),
-),
+            icon: const Icon(Icons.search),
+            onPressed: () => context.push('/search'),
+          ),
           IconButton(
-    icon: const Icon(Icons.logout),
-    onPressed: () async {
-      await Supabase.instance.client.auth.signOut();
-      if (!context.mounted) return;
-      context.go('/login');
-    },
-  ),
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              // cleanup channel before logging out
+              final ch = _notifChannel;
+              _notifChannel = null;
+              if (ch != null) {
+                await Supabase.instance.client.removeChannel(ch);
+              }
+
+              await Supabase.instance.client.auth.signOut();
+              if (!context.mounted) return;
+              context.go('/login');
+            },
+          ),
         ],
-        
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -220,7 +367,11 @@ class _FeedScreenState extends State<FeedScreen> {
                   ),
                 )
               : RefreshIndicator(
-                  onRefresh: _load,
+                  onRefresh: () async {
+                    await _load();
+                    // optional refresh unread too
+                    await _refreshUnreadNotifs();
+                  },
                   child: ListView.builder(
                     itemCount: _posts.length + 1,
                     itemBuilder: (_, i) {
@@ -263,10 +414,12 @@ class _FeedScreenState extends State<FeedScreen> {
                                         ),
                                       ),
                                       if (p.distanceKm != null) ...[
-                                        Text('${p.distanceKm!.toStringAsFixed(1)} km',
-                                          style: const TextStyle(fontSize: 12)),
-                                          const SizedBox(width: 8),
-                                        ],
+                                        Text(
+                                          '${p.distanceKm!.toStringAsFixed(1)} km',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                        const SizedBox(width: 8),
+                                      ],
                                       if (badgeText != null)
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -298,7 +451,10 @@ class _FeedScreenState extends State<FeedScreen> {
                               const SizedBox(height: 8),
                               if (p.locationName != null)
                                 Text('📍 ${p.locationName}', style: const TextStyle(fontSize: 12)),
-                              Text(p.createdAt.toLocal().toString(), style: const TextStyle(fontSize: 12)),
+                              Text(
+                                p.createdAt.toLocal().toString(),
+                                style: const TextStyle(fontSize: 12),
+                              ),
                             ],
                           ),
                         ),

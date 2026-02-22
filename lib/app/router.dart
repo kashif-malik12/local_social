@@ -1,3 +1,9 @@
+// lib/app/router.dart
+//
+// ✅ Updated with Notifications route
+// Add this import:
+import '../screens/notifications_screen.dart'; // ✅ NEW
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,15 +13,13 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/profile/presentation/complete_profile_screen.dart';
-import '../features/profile/presentation/profile_detail_screen.dart'; // ✅ NEW
+import '../features/profile/presentation/profile_detail_screen.dart';
 import '../screens/feed_screen.dart';
 import '../screens/create_post_screen.dart';
 import '../features/profile/presentation/follow_list_screen.dart';
 import '../screens/comments_screen.dart';
 import 'package:local_social/screens/search_screen.dart';
-
-
-
+import '../screens/post_detail_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final auth = Supabase.instance.client.auth;
@@ -78,22 +82,30 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
       GoRoute(path: '/feed', builder: (context, state) => const FeedScreen()),
       GoRoute(path: '/create-post', builder: (context, state) => const CreatePostScreen()),
+
+      // ✅ NEW: notifications
       GoRoute(
-  path: '/profile',
-  builder: (context, state) {
-    final uid = Supabase.instance.client.auth.currentUser!.id;
-    return ProfileDetailScreen(profileId: uid);
-  },
-),
-GoRoute(
-  path: '/profile/edit',
-  builder: (context, state) => const CompleteProfileScreen(),
-),
-GoRoute(
-  path: '/search',
-  builder: (context, state) => const SearchScreen(),
-),
-      // ✅ NEW: visit any profile (your schema: profile id == auth uid)
+        path: '/notifications',
+        builder: (context, state) => const NotificationsScreen(),
+      ),
+
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) {
+          final uid = Supabase.instance.client.auth.currentUser!.id;
+          return ProfileDetailScreen(profileId: uid);
+        },
+      ),
+      GoRoute(
+        path: '/profile/edit',
+        builder: (context, state) => const CompleteProfileScreen(),
+      ),
+      GoRoute(
+        path: '/search',
+        builder: (context, state) => const SearchScreen(),
+      ),
+
+      // ✅ Visit any profile (profile id == auth uid)
       GoRoute(
         path: '/p/:id',
         builder: (context, state) {
@@ -101,28 +113,35 @@ GoRoute(
           return ProfileDetailScreen(profileId: id);
         },
       ),
-      GoRoute(
-  path: '/p/:id/followers',
-  builder: (context, state) {
-    final id = state.pathParameters['id']!;
-    return FollowListScreen(profileId: id, mode: FollowListMode.followers);
-  },
-),
-GoRoute(
-  path: '/p/:id/following',
-  builder: (context, state) {
-    final id = state.pathParameters['id']!;
-    return FollowListScreen(profileId: id, mode: FollowListMode.following);
-  },
-),
-GoRoute(
-  path: '/post/:id/comments',
-  builder: (context, state) {
-    final id = state.pathParameters['id']!;
-    return CommentsScreen(postId: id);
-  },
-),
 
+      GoRoute(
+        path: '/p/:id/followers',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return FollowListScreen(profileId: id, mode: FollowListMode.followers);
+        },
+      ),
+      GoRoute(
+        path: '/p/:id/following',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return FollowListScreen(profileId: id, mode: FollowListMode.following);
+        },
+      ),
+GoRoute(
+  path: '/post/:id',
+  builder: (context, state) {
+    final id = state.pathParameters['id']!;
+    return PostDetailScreen(postId: id);
+  },
+),
+      GoRoute(
+        path: '/post/:id/comments',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return CommentsScreen(postId: id);
+        },
+      ),
     ],
   );
 });

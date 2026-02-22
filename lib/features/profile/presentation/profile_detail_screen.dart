@@ -1,10 +1,15 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../models/post_model.dart';
+import '../../../models/portfolio_item.dart';
 import '../../../services/reaction_service.dart';
 import '../../../services/follow_service.dart';
+import '../../../services/portfolio_service.dart';
 import '../../../widgets/youtube_preview.dart'; // ✅ NEW
 
 class ProfileDetailScreen extends StatefulWidget {
@@ -37,6 +42,12 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   String? _postsError;
   List<Post> _posts = [];
 
+  // ✅ Portfolio (business/org only)
+  bool _portfolioLoading = true;
+  String? _portfolioError;
+  List<PortfolioItem> _portfolio = [];
+  bool _portfolioActionLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +69,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       _loadProfileAndFollow(),
       _loadPosts(),
     ]);
+
+    // ✅ After profile loads (we need profile_type), load portfolio
+    await _loadPortfolioIfEligible();
   }
 
   Future<void> _refreshPendingRequests() async {
@@ -280,7 +294,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 right: -6,
                 top: -6,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.primary,
                     borderRadius: BorderRadius.circular(12),
@@ -316,6 +331,231 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: child,
+    );
+  }
+
+  // =========================
+  // ✅ PORTFOLIO: LOAD / ADD / DELETE / UI
+  // =========================
+
+  bool _canHavePortfolio() {
+    final type =
+        (_profile?['profile_type'] ?? _profile?['account_type'] ?? '').toString();
+    return type == 'business' || type == 'org';
+  }
+
+  Future<void> _loadPortfolioIfEligible() async {
+    if (!_canHavePortfolio()) {
+      if (!mounted) return;
+      setState(() {
+        _portfolioLoading = false;
+        _portfolioError = null;
+        _portfolio = [];
+      });
+      return;
+    }
+    await _loadPortfolio();
+  }
+
+  Future<void> _loadPortfolio() async {
+    setState(() {
+      _portfolioLoading = true;
+      _portfolioError = null;
+    });
+
+    try {
+      final svc = PortfolioService(_db);
+      final items = await svc.fetchPortfolio(widget.profileId);
+
+      if (!mounted) return;
+      setState(() {
+        _portfolio = items;
+        _portfolioLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _portfolioError = e.toString();
+        _portfolioLoading = false;
+      });
+    }
+  }
+
+  Future<void> _pickAndUploadPortfolioImage() async {
+    if (!_isMe) return;
+    if (_portfolioActionLoading) return;
+    if (_portfolio.length >= 5) return;
+
+    setState(() => _portfolioActionLoading = true);
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        withData: true,
+      );
+      if (result == null) return;
+
+      final file = result.files.single;
+      final Uint8List? bytes = file.bytes;
+      if (bytes == null) {
+        throw Exception('No image bytes. Try again.');
+      }
+
+      final ext = (file.extension ?? 'jpg').toLowerCase();
+
+      final svc = PortfolioService(_db);
+      await svc.addPortfolioImage(
+        profileId: widget.profileId,
+        bytes: bytes,
+        fileExt: ext,
+      );
+
+      await _loadPortfolio();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Portfolio upload error: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _portfolioActionLoading = false);
+    }
+  }
+
+  void _openImage(String url) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        insetPadding: const EdgeInsets.all(12),
+        child: InteractiveViewer(
+          child: Image.network(url),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeletePortfolio(String itemId) async {
+    if (!_isMe) return;
+    if (_portfolioActionLoading) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Remove photo?'),
+        content: const Text('This will remove it from your portfolio.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    setState(() => _portfolioActionLoading = true);
+
+    try {
+      final svc = PortfolioService(_db);
+      await svc.deletePortfolioItem(itemId: itemId);
+      await _loadPortfolio();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Portfolio delete error: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _portfolioActionLoading = false);
+    }
+  }
+
+  Widget _buildPortfolioSection(BuildContext context) {
+    if (!_canHavePortfolio()) return const SizedBox.shrink();
+
+    final canAdd = _isMe && _portfolio.length < 5;
+
+    if (_portfolioLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_portfolioError != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text('Portfolio error:\n$_portfolioError'),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('Portfolio',
+                style: Theme.of(context).textTheme.titleMedium),
+            const Spacer(),
+            Text('${_portfolio.length}/5',
+                style: TextStyle(color: Theme.of(context).hintColor)),
+            const SizedBox(width: 8),
+            if (canAdd)
+              ElevatedButton.icon(
+                onPressed: _portfolioActionLoading
+                    ? null
+                    : _pickAndUploadPortfolioImage,
+                icon: _portfolioActionLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.add),
+                label: const Text('Add'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        if (_portfolio.isEmpty)
+          Text(
+            _isMe
+                ? 'Add up to 5 photos to your portfolio.'
+                : 'No portfolio photos yet.',
+            style: TextStyle(color: Theme.of(context).hintColor),
+          )
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _portfolio.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+            ),
+            itemBuilder: (_, i) {
+              final item = _portfolio[i];
+              return GestureDetector(
+                onTap: () => _openImage(item.imageUrl),
+                onLongPress:
+                    _isMe ? () => _confirmDeletePortfolio(item.id) : null,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(item.imageUrl, fit: BoxFit.cover),
+                ),
+              );
+            },
+          ),
+
+        const SizedBox(height: 24),
+        const Divider(),
+        const SizedBox(height: 12),
+      ],
     );
   }
 
@@ -401,7 +641,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               const SizedBox(height: 8),
               Text(
                 'Followers/Following lists are private.',
-                style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12),
+                style:
+                    TextStyle(color: Theme.of(context).hintColor, fontSize: 12),
               ),
             ],
 
@@ -420,7 +661,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             else
               Column(
                 children: [
-                  const Text('This is your profile', textAlign: TextAlign.center),
+                  const Text('This is your profile',
+                      textAlign: TextAlign.center),
                   const SizedBox(height: 12),
                   _followRequestsButtonWithBadge(context),
                   const SizedBox(height: 12),
@@ -444,10 +686,14 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             const Divider(),
             const SizedBox(height: 12),
 
+            // ✅ Portfolio section (business/org only; public view)
+            _buildPortfolioSection(context),
+
             Row(
               children: [
                 Expanded(
-                  child: Text('Posts', style: Theme.of(context).textTheme.titleMedium),
+                  child: Text('Posts',
+                      style: Theme.of(context).textTheme.titleMedium),
                 ),
                 IconButton(
                   tooltip: 'Refresh posts',
@@ -484,7 +730,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                       children: [
                         Text(p.content),
 
-                        // ✅ NEW: YouTube preview
+                        // ✅ YouTube preview
                         if (p.videoUrl != null && p.videoUrl!.isNotEmpty) ...[
                           YoutubePreview(videoUrl: p.videoUrl!),
                         ],

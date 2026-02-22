@@ -3,9 +3,7 @@
 // ✅ Updated to implement:
 // (1) Unread notifications badge in AppBar
 // (2) Global realtime subscription (starts in FeedScreen initState)
-// - Tap bell => opens /notifications
-// - Badge updates in realtime for inserts on notifications where recipient_id = auth.uid()
-// - When returning from notifications screen, refresh unread count
+// (3) YouTube thumbnail preview in feed (tap opens player modal)
 
 import 'dart:async';
 
@@ -16,6 +14,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/post_model.dart';
 import '../services/post_service.dart';
 import '../services/reaction_service.dart';
+import '../widgets/youtube_preview.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -124,13 +123,7 @@ class _FeedScreenState extends State<FeedScreen> {
     return IconButton(
       tooltip: 'Notifications',
       onPressed: () async {
-        // ✅ Navigate to your notifications screen route
-        // Make sure you have this route in router.dart:
-        // GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
         final res = await context.push('/notifications');
-
-        // When user comes back, refresh unread (they may have marked read)
-        // (res can be anything; we refresh regardless)
         await _refreshUnreadNotifs();
       },
       icon: Stack(
@@ -195,7 +188,7 @@ class _FeedScreenState extends State<FeedScreen> {
     }
   }
 
-  // ✅ Likes + comments row (must be a class method, not inside _load)
+  // ✅ Likes + comments row
   Widget _buildReactionsRow(Post p) {
     final react = ReactionService(Supabase.instance.client);
 
@@ -220,7 +213,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   } else {
                     await react.like(p.id);
                   }
-                  if (mounted) setState(() {}); // refresh this FutureBuilder
+                  if (mounted) setState(() {});
                 } catch (e) {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -257,7 +250,6 @@ class _FeedScreenState extends State<FeedScreen> {
         runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          // ✅ Scope: All vs Following
           DropdownButton<String>(
             value: _selectedScope,
             items: const [
@@ -270,8 +262,6 @@ class _FeedScreenState extends State<FeedScreen> {
               _load();
             },
           ),
-
-          // Post Type
           DropdownButton<String>(
             value: _selectedPostType,
             items: const [
@@ -288,8 +278,6 @@ class _FeedScreenState extends State<FeedScreen> {
               _load();
             },
           ),
-
-          // Author Type
           DropdownButton<String>(
             value: _selectedAuthorType,
             items: const [
@@ -304,8 +292,6 @@ class _FeedScreenState extends State<FeedScreen> {
               _load();
             },
           ),
-
-          // Reset
           TextButton.icon(
             onPressed: () {
               setState(() {
@@ -329,9 +315,7 @@ class _FeedScreenState extends State<FeedScreen> {
       appBar: AppBar(
         title: const Text('Local Feed ✅'),
         actions: [
-          // ✅ Notifications bell with unread badge
           _notifBell(),
-
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () => context.go('/profile'),
@@ -343,7 +327,6 @@ class _FeedScreenState extends State<FeedScreen> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              // cleanup channel before logging out
               final ch = _notifChannel;
               _notifChannel = null;
               if (ch != null) {
@@ -369,7 +352,6 @@ class _FeedScreenState extends State<FeedScreen> {
               : RefreshIndicator(
                   onRefresh: () async {
                     await _load();
-                    // optional refresh unread too
                     await _refreshUnreadNotifs();
                   },
                   child: ListView.builder(
@@ -387,7 +369,6 @@ class _FeedScreenState extends State<FeedScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // ✅ Click author row → open profile
                               InkWell(
                                 onTap: () => context.push('/p/${p.userId}'),
                                 borderRadius: BorderRadius.circular(8),
@@ -436,6 +417,11 @@ class _FeedScreenState extends State<FeedScreen> {
 
                               const SizedBox(height: 6),
                               Text(p.content),
+
+                              // ✅ ✅ STEP 4: YouTube thumbnail preview (tap opens modal player)
+                              if (p.videoUrl != null && p.videoUrl!.isNotEmpty) ...[
+                                YoutubePreview(videoUrl: p.videoUrl!),
+                              ],
 
                               if (p.imageUrl != null) ...[
                                 const SizedBox(height: 10),

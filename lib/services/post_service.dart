@@ -68,6 +68,7 @@ class PostService {
     required double longitude,
     String? locationName,
     String? imageUrl,
+    String? videoUrl, // ✅ NEW
     required String postType,
   }) async {
     final user = _db.auth.currentUser;
@@ -91,6 +92,7 @@ class PostService {
       'longitude': longitude,
       'location_name': locationName,
       'image_url': imageUrl,
+      'video_url': videoUrl, // ✅ NEW
       'post_type': postType,
       'author_profile_type': authorType,
     });
@@ -129,7 +131,7 @@ class PostService {
 
         final list = (data as List).cast<Map<String, dynamic>>();
 
-        // Apply optional filters client-side (simple & avoids query rebuild)
+        // Apply optional filters client-side
         return list.where((p) {
           final pt = p['post_type']?.toString() ?? '';
           final at = p['author_profile_type']?.toString() ?? '';
@@ -139,11 +141,12 @@ class PostService {
         }).toList();
       }
 
-      // FOLLOWING scope: posts from followed users + self
+      // FOLLOWING scope: posts from accepted followed users + self
       final followed = await _db
           .from('follows')
           .select('followed_profile_id')
-          .eq('follower_id', user.id);
+          .eq('follower_id', user.id)
+          .eq('status', 'accepted'); // ✅ important for request-based workflow
 
       final ids = (followed as List)
           .map((e) => e['followed_profile_id'] as String?)
@@ -176,7 +179,8 @@ class PostService {
     final rows = await _db.rpc('nearby_posts', params: {
       'p_lat': lat,
       'p_lng': lng,
-      'p_radius_km': radiusKm.toDouble(),      'p_limit': limit,
+      'p_radius_km': radiusKm.toDouble(),
+      'p_limit': limit,
       'p_post_type': postType,
       'p_author_type': authorType,
       'p_scope': scope == 'following' ? 'following' : 'public',

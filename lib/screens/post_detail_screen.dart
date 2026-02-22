@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/post_model.dart';
 import '../services/reaction_service.dart';
+import '../widgets/youtube_preview.dart'; // ✅ NEW
 
 class PostDetailScreen extends StatefulWidget {
   final String postId;
@@ -105,8 +106,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               ),
                             ],
                           ),
+
                           const SizedBox(height: 12),
                           Text(_post!.content),
+
+                          // ✅ NEW: YouTube preview on post detail
+                          if (_post!.videoUrl != null && _post!.videoUrl!.isNotEmpty) ...[
+                            YoutubePreview(videoUrl: _post!.videoUrl!),
+                          ],
+
                           if (_post!.imageUrl != null) ...[
                             const SizedBox(height: 12),
                             ClipRRect(
@@ -114,6 +122,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               child: Image.network(_post!.imageUrl!, fit: BoxFit.cover),
                             ),
                           ],
+
                           const SizedBox(height: 12),
 
                           FutureBuilder<List<dynamic>>(

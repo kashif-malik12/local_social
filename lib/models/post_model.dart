@@ -4,11 +4,16 @@ class Post {
   final String id;
   final String userId;
   final String content;
+
   final String? imageUrl;
+  final String? videoUrl; // ✅ NEW
+
   final String visibility;
   final String? locationName;
+
   final double latitude;
   final double longitude;
+
   final DateTime createdAt;
 
   // Author info (can come from joined select OR RPC)
@@ -29,6 +34,7 @@ class Post {
     required this.longitude,
     required this.createdAt,
     this.imageUrl,
+    this.videoUrl, // ✅ NEW
     this.locationName,
     this.authorName,
     this.authorAvatarUrl,
@@ -57,11 +63,16 @@ class Post {
       id: map['id'] as String,
       userId: map['user_id'] as String,
       content: (map['content'] ?? '') as String,
+
       imageUrl: map['image_url'] as String?,
+      videoUrl: map['video_url'] as String?, // ✅ NEW
+
       visibility: (map['visibility'] as String?) ?? 'public',
       locationName: map['location_name'] as String?,
+
       latitude: ((map['latitude'] as num?) ?? 0).toDouble(),
       longitude: ((map['longitude'] as num?) ?? 0).toDouble(),
+
       createdAt: DateTime.parse(map['created_at'] as String),
 
       authorName: authorName,

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../models/post_model.dart';
 import '../../../services/reaction_service.dart';
 import '../../../services/follow_service.dart';
+import '../../../widgets/youtube_preview.dart'; // ✅ NEW
 
 class ProfileDetailScreen extends StatefulWidget {
   final String profileId; // ✅ in your app this equals auth uid
@@ -114,8 +115,11 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       final myUserId = _db.auth.currentUser!.id;
 
       // ✅ Your schema: profiles.id == auth uid
-      final p =
-          await _db.from('profiles').select('*').eq('id', widget.profileId).single();
+      final p = await _db
+          .from('profiles')
+          .select('*')
+          .eq('id', widget.profileId)
+          .single();
       _profile = p;
 
       _isMe = (widget.profileId == myUserId);
@@ -305,11 +309,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     required Widget child,
   }) {
     if (!enabled) {
-      // Not clickable + slightly dim to communicate "disabled"
-      return Opacity(
-        opacity: 0.65,
-        child: child,
-      );
+      return Opacity(opacity: 0.65, child: child);
     }
 
     return InkWell(
@@ -397,7 +397,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               ],
             ),
 
-            // Optional small hint text on other profiles
             if (!canOpenLists) ...[
               const SizedBox(height: 8),
               Text(
@@ -484,6 +483,12 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(p.content),
+
+                        // ✅ NEW: YouTube preview
+                        if (p.videoUrl != null && p.videoUrl!.isNotEmpty) ...[
+                          YoutubePreview(videoUrl: p.videoUrl!),
+                        ],
+
                         if (p.imageUrl != null) ...[
                           const SizedBox(height: 10),
                           ClipRRect(
@@ -495,7 +500,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                         _buildReactionsRow(p),
                         const SizedBox(height: 8),
                         if (p.locationName != null)
-                          Text('📍 ${p.locationName}', style: const TextStyle(fontSize: 12)),
+                          Text('📍 ${p.locationName}',
+                              style: const TextStyle(fontSize: 12)),
                         Text(
                           p.createdAt.toLocal().toString(),
                           style: const TextStyle(fontSize: 12),

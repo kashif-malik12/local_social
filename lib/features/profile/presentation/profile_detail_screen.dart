@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../models/post_model.dart';
 import '../../../services/reaction_service.dart';
+import '../../../services/follow_service.dart';
 
 class ProfileDetailScreen extends StatefulWidget {
   final String profileId; // ✅ in your app this equals auth uid
@@ -21,10 +22,14 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
   Map<String, dynamic>? _profile;
   bool _isMe = false;
-  bool _isFollowing = false;
+  FollowStatus _followStatus = FollowStatus.none;
 
   int _followersCount = 0;
   int _followingCount = 0;
+
+  // ✅ Follow requests badge (only for me)
+  int _pendingRequests = 0;
+  RealtimeChannel? _reqChannel;
 
   // ✅ Posts on profile
   bool _postsLoading = true;
@@ -37,11 +42,66 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     _loadAll();
   }
 
+  @override
+  void dispose() {
+    final ch = _reqChannel;
+    _reqChannel = null;
+    if (ch != null) {
+      _db.removeChannel(ch);
+    }
+    super.dispose();
+  }
+
   Future<void> _loadAll() async {
     await Future.wait([
       _loadProfileAndFollow(),
       _loadPosts(),
     ]);
+  }
+
+  Future<void> _refreshPendingRequests() async {
+    final me = _db.auth.currentUser?.id;
+    if (me == null) return;
+
+    final rows = await _db
+        .from('follows')
+        .select('follower_id')
+        .eq('followed_profile_id', me)
+        .eq('status', 'pending');
+
+    if (!mounted) return;
+    setState(() => _pendingRequests = (rows as List).length);
+  }
+
+  void _subscribeRequestsRealtime() {
+    final me = _db.auth.currentUser?.id;
+    if (me == null) return;
+    if (_reqChannel != null) return;
+
+    _reqChannel = _db.channel('follow-requests-$me')
+      ..onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'follows',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'followed_profile_id',
+          value: me,
+        ),
+        callback: (_) => _refreshPendingRequests(),
+      )
+      ..onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'follows',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'followed_profile_id',
+          value: me,
+        ),
+        callback: (_) => _refreshPendingRequests(),
+      )
+      ..subscribe();
   }
 
   Future<void> _loadProfileAndFollow() async {
@@ -55,33 +115,28 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
       // ✅ Your schema: profiles.id == auth uid
       final p = await _db.from('profiles').select('*').eq('id', widget.profileId).single();
-
       _profile = p;
+
       _isMe = (widget.profileId == myUserId);
 
-      // ✅ Follow state
-      if (!_isMe) {
-        final f = await _db
-            .from('follows')
-            .select('id')
-            .eq('follower_id', myUserId)
-            .eq('followed_profile_id', widget.profileId)
-            .maybeSingle();
+      final follow = FollowService(_db);
 
-        _isFollowing = f != null;
+      // ✅ Follow state (only when not me)
+      if (!_isMe) {
+        _followStatus = await follow.getMyStatus(widget.profileId);
       } else {
-        _isFollowing = false;
+        _followStatus = FollowStatus.none;
       }
 
-      // ✅ Followers count (simple & compatible)
-      final followersRows =
-          await _db.from('follows').select('id').eq('followed_profile_id', widget.profileId);
-      _followersCount = (followersRows as List).length;
+      // ✅ Counts should be accepted only
+      _followersCount = await follow.followersCount(widget.profileId);
+      _followingCount = await follow.followingCount(widget.profileId);
 
-      // ✅ Following count (how many this profile follows)
-      final followingRows =
-          await _db.from('follows').select('id').eq('follower_id', widget.profileId);
-      _followingCount = (followingRows as List).length;
+      // ✅ Pending requests badge (only for me)
+      if (_isMe) {
+        await _refreshPendingRequests();
+        _subscribeRequestsRealtime();
+      }
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -96,10 +151,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     });
 
     try {
-      // Include profiles(full_name) so Post.fromMap continues to work.
       final rows = await _db
           .from('posts')
-          .select('*, profiles(full_name)')
+          .select('*, profiles(full_name, avatar_url)')
           .eq('user_id', widget.profileId)
           .order('created_at', ascending: false);
 
@@ -118,29 +172,23 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   Future<void> _toggleFollow() async {
     if (_isMe) return;
 
-    final myUserId = _db.auth.currentUser!.id;
-
     setState(() => _loading = true);
 
     try {
-      if (_isFollowing) {
-        await _db
-            .from('follows')
-            .delete()
-            .eq('follower_id', myUserId)
-            .eq('followed_profile_id', widget.profileId);
+      final follow = FollowService(_db);
 
-        _isFollowing = false;
-        _followersCount = (_followersCount - 1).clamp(0, 1 << 30);
+      if (_followStatus == FollowStatus.accepted ||
+          _followStatus == FollowStatus.pending ||
+          _followStatus == FollowStatus.declined) {
+        await follow.cancelOrUnfollow(widget.profileId);
+        _followStatus = FollowStatus.none;
       } else {
-        await _db.from('follows').insert({
-          'follower_id': myUserId,
-          'followed_profile_id': widget.profileId,
-        });
-
-        _isFollowing = true;
-        _followersCount = _followersCount + 1;
+        await follow.requestFollow(widget.profileId);
+        _followStatus = FollowStatus.pending;
       }
+
+      _followersCount = await follow.followersCount(widget.profileId);
+      _followingCount = await follow.followingCount(widget.profileId);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -149,6 +197,19 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       }
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _followButtonText() {
+    switch (_followStatus) {
+      case FollowStatus.accepted:
+        return 'Unfollow';
+      case FollowStatus.pending:
+        return 'Requested';
+      case FollowStatus.declined:
+        return 'Request again';
+      case FollowStatus.none:
+        return 'Request follow';
     }
   }
 
@@ -200,6 +261,42 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     );
   }
 
+  Widget _followRequestsButtonWithBadge(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => context.push('/follow-requests'),
+        icon: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Icon(Icons.person_add_alt_1),
+            if (_pendingRequests > 0)
+              Positioned(
+                right: -6,
+                top: -6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _pendingRequests > 99 ? '99+' : '$_pendingRequests',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        label: const Text('Follow Requests'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading && _profile == null) {
@@ -221,7 +318,19 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     final type = (_profile?['profile_type'] ?? _profile?['account_type'] ?? '').toString();
 
     return Scaffold(
-      appBar: AppBar(title: Text(name)),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/feed');
+            }
+          },
+        ),
+        title: Text(name),
+      ),
       body: RefreshIndicator(
         onRefresh: _loadAll,
         child: ListView(
@@ -259,33 +368,41 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             ),
 
             const SizedBox(height: 16),
-           if (!_isMe)
-  SizedBox(
-    width: double.infinity,
-    child: ElevatedButton(
-      onPressed: _loading ? null : _toggleFollow,
-      child: Text(_isFollowing ? 'Unfollow' : 'Follow'),
-    ),
-  )
-else
-  Column(
-    children: [
-      const Text('This is your profile', textAlign: TextAlign.center),
-      const SizedBox(height: 12),
-      SizedBox(
-        width: double.infinity,
-        child: OutlinedButton.icon(
-          onPressed: () async {
-            await context.push('/profile/edit');
-            if (!mounted) return;
-            await _loadAll(); // refresh after editing
-          },
-          icon: const Icon(Icons.edit),
-          label: const Text('Edit Profile'),
-        ),
-      ),
-    ],
-  ),
+
+            if (!_isMe)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: (_loading || _followStatus == FollowStatus.pending)
+                      ? null
+                      : _toggleFollow,
+                  child: Text(_followButtonText()),
+                ),
+              )
+            else
+              Column(
+                children: [
+                  const Text('This is your profile', textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+
+                  _followRequestsButtonWithBadge(context),
+                  const SizedBox(height: 12),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final router = GoRouter.of(context);
+                        await router.push('/profile/edit');
+                        if (!mounted) return;
+                        await _loadAll();
+                      },
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edit Profile'),
+                    ),
+                  ),
+                ],
+              ),
 
             const SizedBox(height: 24),
             const Divider(),

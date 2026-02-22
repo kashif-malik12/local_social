@@ -465,6 +465,7 @@ class _FeedScreenState extends State<FeedScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final res = await context.push('/create-post');
+          if (!mounted) return;
           if (res == true) _load();
         },
         icon: const Icon(Icons.add),

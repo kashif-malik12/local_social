@@ -20,6 +20,7 @@ import '../features/profile/presentation/follow_list_screen.dart';
 import '../screens/comments_screen.dart';
 import 'package:local_social/screens/search_screen.dart';
 import '../screens/post_detail_screen.dart';
+import '../features/profile/presentation/follow_requests_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final auth = Supabase.instance.client.auth;
@@ -88,7 +89,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/notifications',
         builder: (context, state) => const NotificationsScreen(),
       ),
-
+GoRoute(
+  path: '/follow-requests',
+  builder: (context, state) => const FollowRequestsScreen(),
+),
       GoRoute(
         path: '/profile',
         builder: (context, state) {

@@ -44,6 +44,22 @@ class NotificationService {
         .eq('recipient_id', _me);
   }
 
+  // lib/services/notification_service.dart
+
+Future<List<Map<String, dynamic>>> fetchPage({
+  required int from,
+  required int to,
+}) async {
+  final rows = await _db
+      .from('notifications')
+      .select('*, actor:profiles!notifications_actor_id_fkey(full_name, avatar_url)')
+      .eq('recipient_id', _me)
+      .order('created_at', ascending: false)
+      .range(from, to);
+
+  return (rows as List).cast<Map<String, dynamic>>();
+}
+
   /// Realtime: listen for new notifications
   RealtimeChannel subscribeToMyNotifications(void Function() onNew) {
     final channel = _db.channel('notifications-$_me');

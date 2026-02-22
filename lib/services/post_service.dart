@@ -176,8 +176,7 @@ class PostService {
     final rows = await _db.rpc('nearby_posts', params: {
       'p_lat': lat,
       'p_lng': lng,
-      'p_radius_km': radiusKm,
-      'p_limit': limit,
+      'p_radius_km': radiusKm.toDouble(),      'p_limit': limit,
       'p_post_type': postType,
       'p_author_type': authorType,
       'p_scope': scope == 'following' ? 'following' : 'public',

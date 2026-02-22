@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../widgets/global_app_bar.dart'; // ✅ NEW
+
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
@@ -32,13 +34,14 @@ class _SearchScreenState extends State<SearchScreen> {
 
   String _selectedPostType = 'all';
   String _selectedAuthorType = 'all';
+
   String _strictnessLabel(double v) {
-  final x = v.clamp(0.15, 0.45).toDouble();
-  if (x <= 0.20) return 'Broad';
-  if (x <= 0.30) return 'Balanced';
-  if (x <= 0.40) return 'Precise';
-  return 'Exact';
-}
+    final x = v.clamp(0.15, 0.45).toDouble();
+    if (x <= 0.20) return 'Broad';
+    if (x <= 0.30) return 'Balanced';
+    if (x <= 0.40) return 'Precise';
+    return 'Exact';
+  }
 
   bool _loading = false;
   String? _error;
@@ -68,7 +71,11 @@ class _SearchScreenState extends State<SearchScreen> {
   Future<void> _loadMyLocation() async {
     try {
       final user = _db.auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        if (!mounted) return;
+        setState(() => _profileLoaded = true);
+        return;
+      }
 
       final me = await _db
           .from('profiles')
@@ -80,11 +87,11 @@ class _SearchScreenState extends State<SearchScreen> {
       _meLng = (me['longitude'] as num?)?.toDouble();
       _meRadiusKm = (me['radius_km'] as int?) ?? 5;
     } catch (_) {
-      // ignore, will fallback to non-nearby search
-    } finally {
-      if (!mounted) return;
-      setState(() => _profileLoaded = true);
+      // ignore, fallback to non-nearby search
     }
+
+    if (!mounted) return;
+    setState(() => _profileLoaded = true);
   }
 
   void _onQueryChanged() {
@@ -120,7 +127,7 @@ class _SearchScreenState extends State<SearchScreen> {
     });
 
     try {
-      // ✅ Profiles: nearby + fuzzy if we have location and toggle on, else fallback to old rpc
+      // ✅ Profiles
       if (_tab == SearchTab.profiles) {
         final useNearby = _nearbyOnly && _meLat != null && _meLng != null;
 
@@ -147,11 +154,12 @@ class _SearchScreenState extends State<SearchScreen> {
           _loading = false;
         });
       } else {
-        // ✅ Posts: nearby + scoped + fuzzy if we have location and toggle on, else fallback to scoped search
+        // ✅ Posts
         final user = _db.auth.currentUser;
         if (user == null) throw Exception('Not logged in');
 
-        final scopeStr = _scope == SearchScope.following ? 'following' : 'public';
+        final scopeStr =
+            _scope == SearchScope.following ? 'following' : 'public';
         final useNearby = _nearbyOnly && _meLat != null && _meLng != null;
 
         final res = useNearby
@@ -213,7 +221,12 @@ class _SearchScreenState extends State<SearchScreen> {
     final q = _qCtrl.text.trim();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Search')),
+      // ✅ Global sticky app bar (title clickable -> /feed)
+      appBar: const GlobalAppBar(
+        title: 'Local Feed ✅',
+        showBackIfPossible: true,
+        homeRoute: '/feed',
+      ),
       body: Column(
         children: [
           Padding(
@@ -240,6 +253,7 @@ class _SearchScreenState extends State<SearchScreen> {
               onSubmitted: (_) => _runSearch(),
             ),
           ),
+
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: SegmentedButton<SearchTab>(
@@ -260,7 +274,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
 
-          // ✅ Nearby toggle (works for both tabs)
+          // ✅ Nearby toggle
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -282,50 +296,50 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
 
-          // ✅ Fuzzy slider (optional quick control)
+          // ✅ Fuzzy slider
           Padding(
-  padding: const EdgeInsets.symmetric(horizontal: 12),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        children: [
-          const Text(
-            'Match strictness',
-            style: TextStyle(fontWeight: FontWeight.w600),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Match strictness',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _strictnessLabel(_simThreshold),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+                Slider(
+                  value: _simThreshold.clamp(0.15, 0.45).toDouble(),
+                  min: 0.15,
+                  max: 0.45,
+                  divisions: 6,
+                  label: _strictnessLabel(_simThreshold),
+                  onChanged: (v) {
+                    final clamped = v.clamp(0.15, 0.45).toDouble();
+                    setState(() => _simThreshold = clamped);
+                  },
+                  onChangeEnd: (_) => _runSearch(),
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(top: 2),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Broader', style: TextStyle(fontSize: 12)),
+                      Text('Exact', style: TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            _strictnessLabel(_simThreshold),
-            style: const TextStyle(fontSize: 12),
-          ),
-        ],
-      ),
-      Slider(
-        value: _simThreshold.clamp(0.15, 0.45).toDouble(),
-        min: 0.15,
-        max: 0.45,
-        divisions: 6,
-        label: _strictnessLabel(_simThreshold),
-        onChanged: (v) {
-          final clamped = v.clamp(0.15, 0.45).toDouble();
-          setState(() => _simThreshold = clamped);
-        },
-        onChangeEnd: (_) => _runSearch(),
-      ),
-      const Padding(
-        padding: EdgeInsets.only(top: 2),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Broader', style: TextStyle(fontSize: 12)),
-            Text('Exact', style: TextStyle(fontSize: 12)),
-          ],
-        ),
-      ),
-    ],
-  ),
-),
 
           if (_tab == SearchTab.posts) ...[
             const SizedBox(height: 8),
@@ -407,6 +421,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
           ],
+
           const SizedBox(height: 8),
           Expanded(child: _buildBody(q)),
         ],
@@ -440,9 +455,7 @@ class _SearchScreenState extends State<SearchScreen> {
     if (q.isEmpty) return const Center(child: Text('Type something to search.'));
 
     if (_tab == SearchTab.profiles) {
-      if (_profiles.isEmpty) {
-        return const Center(child: Text('No profiles found.'));
-      }
+      if (_profiles.isEmpty) return const Center(child: Text('No profiles found.'));
 
       return ListView.separated(
         itemCount: _profiles.length,
@@ -508,6 +521,8 @@ class _SearchScreenState extends State<SearchScreen> {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
+          // Optional: open post detail if you want
+          // onTap: () => context.push('/post/${(p['id'] ?? '').toString()}'),
         );
       },
     );

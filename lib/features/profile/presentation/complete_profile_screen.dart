@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../services/profile_service.dart';
+import '../../../widgets/global_app_bar.dart'; // ✅ NEW
 
 class CompleteProfileScreen extends StatefulWidget {
   const CompleteProfileScreen({super.key});
@@ -275,7 +276,13 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     final zipLocked = _isZipLocked;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Complete Profile')),
+      // ✅ Global sticky app bar (title clickable -> /feed)
+      appBar: const GlobalAppBar(
+        title: 'Local Feed ✅',
+        showBackIfPossible: true,
+        homeRoute: '/feed',
+      ),
+
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: ListView(

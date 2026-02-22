@@ -15,6 +15,7 @@ import '../models/post_model.dart';
 import '../services/post_service.dart';
 import '../services/reaction_service.dart';
 import '../widgets/youtube_preview.dart';
+import '../widgets/global_app_bar.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -95,26 +96,28 @@ class _FeedScreenState extends State<FeedScreen> {
     final db = Supabase.instance.client;
     final channel = db.channel('notif-unread-$uid');
 
-    channel.onPostgresChanges(
-      event: PostgresChangeEvent.insert,
-      schema: 'public',
-      table: 'notifications',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'recipient_id',
-        value: uid,
-      ),
-      callback: (payload) {
-        // quick bump for instant UX
-        if (mounted) setState(() => _unreadNotifs = _unreadNotifs + 1);
+    channel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'recipient_id',
+            value: uid,
+          ),
+          callback: (payload) {
+            // quick bump for instant UX
+            if (mounted) setState(() => _unreadNotifs = _unreadNotifs + 1);
 
-        // debounce a refresh to stay correct in edge cases
-        _notifDebounce?.cancel();
-        _notifDebounce = Timer(const Duration(milliseconds: 450), () {
-          _refreshUnreadNotifs();
-        });
-      },
-    ).subscribe();
+            // debounce a refresh to stay correct in edge cases
+            _notifDebounce?.cancel();
+            _notifDebounce = Timer(const Duration(milliseconds: 450), () {
+              _refreshUnreadNotifs();
+            });
+          },
+        )
+        .subscribe();
 
     _notifChannel = channel;
   }
@@ -123,7 +126,7 @@ class _FeedScreenState extends State<FeedScreen> {
     return IconButton(
       tooltip: 'Notifications',
       onPressed: () async {
-        final res = await context.push('/notifications');
+        await context.push('/notifications');
         await _refreshUnreadNotifs();
       },
       icon: Stack(
@@ -155,6 +158,15 @@ class _FeedScreenState extends State<FeedScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _onBeforeLogout() async {
+    // Clean up realtime channel before logout (prevents warnings)
+    final ch = _notifChannel;
+    _notifChannel = null;
+    if (ch != null) {
+      await Supabase.instance.client.removeChannel(ch);
+    }
   }
 
   // -----------------------------
@@ -312,34 +324,15 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Local Feed ✅'),
-        actions: [
-          _notifBell(),
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () => context.go('/profile'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () => context.push('/search'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              final ch = _notifChannel;
-              _notifChannel = null;
-              if (ch != null) {
-                await Supabase.instance.client.removeChannel(ch);
-              }
-
-              await Supabase.instance.client.auth.signOut();
-              if (!context.mounted) return;
-              context.go('/login');
-            },
-          ),
-        ],
+      // ✅ Sticky + reusable app bar
+      appBar: GlobalAppBar(
+        title: 'Local Feed ✅',
+        notifBell: _notifBell(),
+        showBackIfPossible: false, // feed is home/root
+        homeRoute: '/feed',
+        onBeforeLogout: _onBeforeLogout,
       ),
+
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -418,7 +411,7 @@ class _FeedScreenState extends State<FeedScreen> {
                               const SizedBox(height: 6),
                               Text(p.content),
 
-                              // ✅ ✅ STEP 4: YouTube thumbnail preview (tap opens modal player)
+                              // ✅ YouTube preview
                               if (p.videoUrl != null && p.videoUrl!.isNotEmpty) ...[
                                 YoutubePreview(videoUrl: p.videoUrl!),
                               ],

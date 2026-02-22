@@ -10,7 +10,8 @@ import '../../../models/portfolio_item.dart';
 import '../../../services/reaction_service.dart';
 import '../../../services/follow_service.dart';
 import '../../../services/portfolio_service.dart';
-import '../../../widgets/youtube_preview.dart'; // ✅ NEW
+import '../../../widgets/youtube_preview.dart';
+import '../../../widgets/global_app_bar.dart'; // ✅ NEW
 
 class ProfileDetailScreen extends StatefulWidget {
   final String profileId; // ✅ in your app this equals auth uid
@@ -497,17 +498,15 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       children: [
         Row(
           children: [
-            Text('Portfolio',
-                style: Theme.of(context).textTheme.titleMedium),
+            Text('Portfolio', style: Theme.of(context).textTheme.titleMedium),
             const Spacer(),
             Text('${_portfolio.length}/5',
                 style: TextStyle(color: Theme.of(context).hintColor)),
             const SizedBox(width: 8),
             if (canAdd)
               ElevatedButton.icon(
-                onPressed: _portfolioActionLoading
-                    ? null
-                    : _pickAndUploadPortfolioImage,
+                onPressed:
+                    _portfolioActionLoading ? null : _pickAndUploadPortfolioImage,
                 icon: _portfolioActionLoading
                     ? const SizedBox(
                         width: 16,
@@ -520,7 +519,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           ],
         ),
         const SizedBox(height: 10),
-
         if (_portfolio.isEmpty)
           Text(
             _isMe
@@ -542,8 +540,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               final item = _portfolio[i];
               return GestureDetector(
                 onTap: () => _openImage(item.imageUrl),
-                onLongPress:
-                    _isMe ? () => _confirmDeletePortfolio(item.id) : null,
+                onLongPress: _isMe ? () => _confirmDeletePortfolio(item.id) : null,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: Image.network(item.imageUrl, fit: BoxFit.cover),
@@ -551,7 +548,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               );
             },
           ),
-
         const SizedBox(height: 24),
         const Divider(),
         const SizedBox(height: 12),
@@ -567,7 +563,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
     if (_error != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Profile')),
+        appBar: const GlobalAppBar(title: 'Local Feed ✅'),
         body: Padding(
           padding: const EdgeInsets.all(16),
           child: Text('Profile error:\n$_error'),
@@ -584,19 +580,13 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     final canOpenLists = _isMe;
 
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/feed');
-            }
-          },
-        ),
-        title: Text(name),
+      // ✅ Global sticky app bar (title is clickable -> /feed)
+      appBar: const GlobalAppBar(
+        title: 'Local Feed ✅',
+        showBackIfPossible: true,
+        homeRoute: '/feed',
       ),
+
       body: RefreshIndicator(
         onRefresh: _loadAll,
         child: ListView(
@@ -641,8 +631,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               const SizedBox(height: 8),
               Text(
                 'Followers/Following lists are private.',
-                style:
-                    TextStyle(color: Theme.of(context).hintColor, fontSize: 12),
+                style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12),
               ),
             ],
 
@@ -661,8 +650,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             else
               Column(
                 children: [
-                  const Text('This is your profile',
-                      textAlign: TextAlign.center),
+                  const Text('This is your profile', textAlign: TextAlign.center),
                   const SizedBox(height: 12),
                   _followRequestsButtonWithBadge(context),
                   const SizedBox(height: 12),
@@ -692,8 +680,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             Row(
               children: [
                 Expanded(
-                  child: Text('Posts',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  child: Text('Posts', style: Theme.of(context).textTheme.titleMedium),
                 ),
                 IconButton(
                   tooltip: 'Refresh posts',
@@ -730,7 +717,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                       children: [
                         Text(p.content),
 
-                        // ✅ YouTube preview
                         if (p.videoUrl != null && p.videoUrl!.isNotEmpty) ...[
                           YoutubePreview(videoUrl: p.videoUrl!),
                         ],

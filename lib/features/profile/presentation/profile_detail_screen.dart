@@ -114,7 +114,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       final myUserId = _db.auth.currentUser!.id;
 
       // ✅ Your schema: profiles.id == auth uid
-      final p = await _db.from('profiles').select('*').eq('id', widget.profileId).single();
+      final p =
+          await _db.from('profiles').select('*').eq('id', widget.profileId).single();
       _profile = p;
 
       _isMe = (widget.profileId == myUserId);
@@ -297,6 +298,27 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     );
   }
 
+  // ✅ Stat tile wrapper: only clickable if enabled
+  Widget _clickableStat({
+    required bool enabled,
+    required VoidCallback? onTap,
+    required Widget child,
+  }) {
+    if (!enabled) {
+      // Not clickable + slightly dim to communicate "disabled"
+      return Opacity(
+        opacity: 0.65,
+        child: child,
+      );
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading && _profile == null) {
@@ -315,7 +337,11 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
     final name = (_profile?['full_name'] ?? 'Profile').toString();
     final bio = (_profile?['bio'] ?? '').toString();
-    final type = (_profile?['profile_type'] ?? _profile?['account_type'] ?? '').toString();
+    final type =
+        (_profile?['profile_type'] ?? _profile?['account_type'] ?? '').toString();
+
+    // ✅ Allow opening follower/following lists ONLY on my own profile
+    final canOpenLists = _isMe;
 
     return Scaffold(
       appBar: AppBar(
@@ -350,22 +376,35 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             Row(
               children: [
                 Expanded(
-                  child: InkWell(
-                    onTap: () => context.push('/p/${widget.profileId}/followers'),
-                    borderRadius: BorderRadius.circular(12),
+                  child: _clickableStat(
+                    enabled: canOpenLists,
+                    onTap: canOpenLists
+                        ? () => context.push('/p/${widget.profileId}/followers')
+                        : null,
                     child: _StatTile(label: 'Followers', value: _followersCount),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: InkWell(
-                    onTap: () => context.push('/p/${widget.profileId}/following'),
-                    borderRadius: BorderRadius.circular(12),
+                  child: _clickableStat(
+                    enabled: canOpenLists,
+                    onTap: canOpenLists
+                        ? () => context.push('/p/${widget.profileId}/following')
+                        : null,
                     child: _StatTile(label: 'Following', value: _followingCount),
                   ),
                 ),
               ],
             ),
+
+            // Optional small hint text on other profiles
+            if (!canOpenLists) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Followers/Following lists are private.',
+                style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12),
+              ),
+            ],
 
             const SizedBox(height: 16),
 
@@ -384,10 +423,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 children: [
                   const Text('This is your profile', textAlign: TextAlign.center),
                   const SizedBox(height: 12),
-
                   _followRequestsButtonWithBadge(context),
                   const SizedBox(height: 12),
-
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(

@@ -37,6 +37,12 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   bool _loading = false;
   String? _error;
 
+  /// ✅ Zip is locked once it's already set (5 digits) in the profile.
+  bool get _isZipLocked {
+    final z = _zipCtrl.text.trim();
+    return z.isNotEmpty && RegExp(r'^\d{5}$').hasMatch(z);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -125,6 +131,14 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   }
 
   Future<void> _setFromZipcode() async {
+    // ✅ Block changes once zip is set
+    if (_isZipLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Postal code is locked after first set.')),
+      );
+      return;
+    }
+
     setState(() {
       _loading = true;
       _error = null;
@@ -204,20 +218,22 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       final fullName = _name.text.trim();
       if (fullName.isEmpty) throw 'Name is required';
 
+      // ✅ Only validate zipcode/location if NOT locked (i.e., first-time set)
       final zip = _zipCtrl.text.trim();
-      if (!RegExp(r'^\d{5}$').hasMatch(zip)) {
-        throw 'Enter a valid 5-digit French postal code (e.g. 91000)';
+      if (!_isZipLocked) {
+        if (!RegExp(r'^\d{5}$').hasMatch(zip)) {
+          throw 'Enter a valid 5-digit French postal code (e.g. 91000)';
+        }
+        if (_lat == null || _lng == null) {
+          throw 'Please set your location (zip code) first';
+        }
       }
 
       if (_accountType == 'org' && _orgKind == null) {
         throw 'Please select Government or Non-profit';
       }
 
-      if (_lat == null || _lng == null) {
-        throw 'Please set your location (zip code) first';
-      }
-
-      final updateData = {
+      final updateData = <String, dynamic>{
         'full_name': fullName,
         'bio': _bio.text.trim().isEmpty ? null : _bio.text.trim(),
 
@@ -227,13 +243,18 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
         'radius_km': _radiusKm,
 
-        'zipcode': zip,
-        'latitude': _lat,
-        'longitude': _lng,
-
         // ✅ keep avatar
         'avatar_url': _avatarUrl,
       };
+
+      // ✅ Only send zipcode/lat/lng on first-time set
+      if (!_isZipLocked) {
+        updateData.addAll({
+          'zipcode': zip,
+          'latitude': _lat,
+          'longitude': _lng,
+        });
+      }
 
       await Supabase.instance.client.from('profiles').upsert({
         'id': user.id,
@@ -251,6 +272,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final zipLocked = _isZipLocked;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Complete Profile')),
       body: Padding(
@@ -267,9 +290,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       children: [
                         CircleAvatar(
                           radius: 46,
-                          backgroundImage: (_avatarUrl != null && _avatarUrl!.isNotEmpty)
-                              ? NetworkImage(_avatarUrl!)
-                              : null,
+                          backgroundImage:
+                              (_avatarUrl != null && _avatarUrl!.isNotEmpty)
+                                  ? NetworkImage(_avatarUrl!)
+                                  : null,
                           child: (_avatarUrl == null || _avatarUrl!.isEmpty)
                               ? const Icon(Icons.person, size: 46)
                               : null,
@@ -279,7 +303,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: Theme.of(context).colorScheme.surface,
-                            border: Border.all(color: Theme.of(context).dividerColor),
+                            border: Border.all(
+                              color: Theme.of(context).dividerColor,
+                            ),
                           ),
                           child: _uploadingAvatar
                               ? const SizedBox(
@@ -295,7 +321,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                   const SizedBox(height: 10),
                   Text(
                     'Tap to change avatar',
-                    style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12),
+                    style: TextStyle(
+                      color: Theme.of(context).hintColor,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -362,24 +391,28 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 Expanded(
                   child: TextField(
                     controller: _zipCtrl,
+                    enabled: !zipLocked,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
                       labelText: 'Postal Code',
                       hintText: 'e.g. 91000',
+                      helperText: zipLocked ? 'Locked after first set' : null,
                     ),
                   ),
                 ),
                 const SizedBox(width: 10),
                 ElevatedButton(
-                  onPressed: _loading ? null : _setFromZipcode,
-                  child: const Text('Set'),
+                  onPressed: (_loading || zipLocked) ? null : _setFromZipcode,
+                  child: Text(zipLocked ? 'Set ✅' : 'Set'),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             if (_lat != null && _lng != null)
-              Text('Lat/Lng: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}'),
+              Text(
+                'Lat/Lng: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}',
+              ),
 
             const SizedBox(height: 12),
             DropdownButtonFormField<int>(

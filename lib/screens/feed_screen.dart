@@ -22,6 +22,7 @@ import '../services/post_service.dart';
 import '../services/reaction_service.dart';
 import '../widgets/youtube_preview.dart';
 import '../widgets/global_app_bar.dart';
+import '../widgets/report_post_sheet.dart'; // ✅ NEW
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -475,7 +476,7 @@ class _FeedScreenState extends State<FeedScreen> {
                                         ),
                                         const SizedBox(width: 8),
                                       ],
-                                      if (badgeText != null)
+                                      if (badgeText != null) ...[
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                           decoration: BoxDecoration(
@@ -484,6 +485,37 @@ class _FeedScreenState extends State<FeedScreen> {
                                           ),
                                           child: Text(badgeText, style: const TextStyle(fontSize: 12)),
                                         ),
+                                        const SizedBox(width: 6),
+                                      ],
+
+                                      // ✅ NEW: 3-dot menu (Report)
+                                      PopupMenuButton<String>(
+                                        icon: const Icon(Icons.more_vert),
+                                        onSelected: (value) async {
+                                          if (value == 'report') {
+                                            final reported = await showModalBottomSheet<bool>(
+                                              context: context,
+                                              isScrollControlled: true,
+                                              builder: (_) => ReportPostSheet(postId: p.id),
+                                            );
+
+                                            if (reported == true && context.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('Thanks — we’ll review it.'),
+                                                ),
+                                              );
+                                            }
+                                          }
+                                        },
+                                        itemBuilder: (context) => [
+                                          if (Supabase.instance.client.auth.currentUser?.id != p.userId)
+                                            const PopupMenuItem(
+                                              value: 'report',
+                                              child: Text('Report'),
+                                            ),
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),

@@ -12,6 +12,8 @@ import '../../../services/follow_service.dart';
 import '../../../services/portfolio_service.dart';
 import '../../../widgets/youtube_preview.dart';
 import '../../../widgets/global_app_bar.dart';
+import '../../../widgets/report_post_sheet.dart'; // ✅ NEW
+import '../../../widgets/report_user_sheet.dart'; // ✅ NEW
 
 class ProfileDetailScreen extends StatefulWidget {
   final String profileId; // ✅ in your app this equals auth uid
@@ -80,10 +82,43 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   }
 
   // =========================
+  // ✅ REPORT USER
+  // =========================
+  Future<void> _reportUser() async {
+    final reported = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => ReportUserSheet(reportedUserId: widget.profileId),
+    );
+
+    if (reported == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Thanks — we’ll review it.')),
+      );
+    }
+  }
+
+  // =========================
+  // ✅ REPORT POST
+  // =========================
+  Future<void> _reportPost(Post post) async {
+    final reported = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => ReportPostSheet(postId: post.id),
+    );
+
+    if (reported == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Thanks — we’ll review it.')),
+      );
+    }
+  }
+
+  // =========================
   // ✅ MESSAGING PERMISSION
   // =========================
   Future<void> _loadCanMessage() async {
-    // default safe
     if (!mounted) return;
     setState(() {
       _canMessage = false;
@@ -178,8 +213,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     try {
       final myUserId = _db.auth.currentUser!.id;
 
-      // ✅ Your schema: profiles.id == auth uid
-      final p = await _db.from('profiles').select('*').eq('id', widget.profileId).single();
+      final p =
+          await _db.from('profiles').select('*').eq('id', widget.profileId).single();
       _profile = p;
 
       _isMe = (widget.profileId == myUserId);
@@ -189,18 +224,15 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
       final follow = FollowService(_db);
 
-      // ✅ Follow state (only when not me)
       if (!_isMe) {
         _followStatus = await follow.getMyStatus(widget.profileId);
       } else {
         _followStatus = FollowStatus.none;
       }
 
-      // ✅ Counts should be accepted only
       _followersCount = await follow.followersCount(widget.profileId);
       _followingCount = await follow.followingCount(widget.profileId);
 
-      // ✅ Pending requests badge (only for me)
       if (_isMe) {
         await _refreshPendingRequests();
         _subscribeRequestsRealtime();
@@ -228,7 +260,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           .eq('user_id', widget.profileId)
           .order('created_at', ascending: false);
 
-      final list = (rows as List).map((e) => Post.fromMap(e as Map<String, dynamic>)).toList();
+      final list = (rows as List)
+          .map((e) => Post.fromMap(e as Map<String, dynamic>))
+          .toList();
 
       if (mounted) setState(() => _posts = list);
     } catch (e) {
@@ -262,7 +296,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       _followersCount = await follow.followersCount(widget.profileId);
       _followingCount = await follow.followingCount(widget.profileId);
 
-      // ✅ follow state changed => refresh messaging permission
       await _loadCanMessage();
     } catch (e) {
       if (mounted) {
@@ -372,7 +405,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     );
   }
 
-  // ✅ Stat tile wrapper: only clickable if enabled
   Widget _clickableStat({
     required bool enabled,
     required VoidCallback? onTap,
@@ -390,7 +422,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   }
 
   // =========================
-  // ✅ PORTFOLIO: LOAD / ADD / DELETE / UI
+  // ✅ PORTFOLIO
   // =========================
   bool _canHavePortfolio() {
     final type = (_profile?['profile_type'] ?? _profile?['account_type'] ?? '').toString();
@@ -552,7 +584,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           children: [
             Text('Portfolio', style: Theme.of(context).textTheme.titleMedium),
             const Spacer(),
-            Text('${_portfolio.length}/5', style: TextStyle(color: Theme.of(context).hintColor)),
+            Text('${_portfolio.length}/5',
+                style: TextStyle(color: Theme.of(context).hintColor)),
             const SizedBox(width: 8),
             if (canAdd)
               ElevatedButton.icon(
@@ -623,14 +656,30 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     final bio = (_profile?['bio'] ?? '').toString();
     final type = (_profile?['profile_type'] ?? _profile?['account_type'] ?? '').toString();
 
-    // ✅ Allow opening follower/following lists ONLY on my own profile
     final canOpenLists = _isMe;
 
     return Scaffold(
-      appBar: const GlobalAppBar(
+      appBar: GlobalAppBar(
         title: 'Local Feed ✅',
         showBackIfPossible: true,
         homeRoute: '/feed',
+        actions: [
+          if (!_isMe)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) async {
+                if (value == 'report_user') {
+                  await _reportUser();
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'report_user',
+                  child: Text('Report user'),
+                ),
+              ],
+            ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadAll,
@@ -681,7 +730,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             if (!_isMe)
               Column(
                 children: [
-                  // ✅ Message button (only when mutual follow accepted)
                   if (!_canMessageLoading && _canMessage) ...[
                     SizedBox(
                       width: double.infinity,
@@ -693,8 +741,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                     ),
                     const SizedBox(height: 10),
                   ],
-
-                  // ✅ Follow button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -702,7 +748,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                       child: Text(_followButtonText()),
                     ),
                   ),
-
                   if (!_canMessageLoading && !_canMessage) ...[
                     const SizedBox(height: 8),
                     Text(
@@ -740,7 +785,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             const Divider(),
             const SizedBox(height: 12),
 
-            // ✅ Portfolio section (business/org only; public view)
             _buildPortfolioSection(context),
 
             Row(
@@ -781,6 +825,34 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // ✅ header row with report post menu (if not my post)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                p.authorName ?? (_isMe ? 'You' : 'Unknown'),
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            if (_db.auth.currentUser?.id != p.userId)
+                              PopupMenuButton<String>(
+                                icon: const Icon(Icons.more_vert),
+                                onSelected: (value) async {
+                                  if (value == 'report_post') {
+                                    await _reportPost(p);
+                                  }
+                                },
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(
+                                    value: 'report_post',
+                                    child: Text('Report post'),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+
                         Text(p.content),
 
                         if (p.videoUrl != null && p.videoUrl!.isNotEmpty) ...[

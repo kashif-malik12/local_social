@@ -1,3 +1,14 @@
+// lib/services/post_service.dart
+//
+// ✅ Updated to implement cursor-based pagination for:
+// (1) Public feed (no location): server-side filters + stable cursor (created_at + id)
+// (2) Following feed (no location): server-side filters + stable cursor
+// (3) RPC nearby_posts: passes cursor params (requires SQL function update)
+//
+// Notes:
+// - This assumes posts.id is UUID (string). Cursor uses created_at + id.
+// - For perfect tie-break, always pass both beforeCreatedAt and beforeId when paginating.
+
 import 'dart:io' show File;
 import 'dart:typed_data';
 
@@ -68,7 +79,7 @@ class PostService {
     required double longitude,
     String? locationName,
     String? imageUrl,
-    String? videoUrl, // ✅ NEW
+    String? videoUrl,
     required String postType,
   }) async {
     final user = _db.auth.currentUser;
@@ -92,17 +103,22 @@ class PostService {
       'longitude': longitude,
       'location_name': locationName,
       'image_url': imageUrl,
-      'video_url': videoUrl, // ✅ NEW
+      'video_url': videoUrl,
       'post_type': postType,
       'author_profile_type': authorType,
     });
   }
 
+  // -----------------------------
+  // Cursor-based feed pagination
+  // -----------------------------
   Future<List<Map<String, dynamic>>> fetchPublicFeed({
-    int limit = 50,
+    int limit = 20,
     String postType = 'all',
     String authorType = 'all',
     String scope = 'all', // 'all' or 'following'
+    DateTime? beforeCreatedAt,
+    String? beforeId,
   }) async {
     final user = _db.auth.currentUser;
     if (user == null) return <Map<String, dynamic>>[];
@@ -120,62 +136,80 @@ class PostService {
 
     // 2) Fallback if location isn't set
     if (lat == null || lng == null) {
-      // PUBLIC scope: only public posts
       if (scope != 'following') {
-        final data = await _db
+        // PUBLIC scope: only public posts (server-side filters + cursor)
+        var q = _db
             .from('posts')
             .select('*, profiles(full_name, avatar_url)')
-            .eq('visibility', 'public')
+            .eq('visibility', 'public');
+
+        if (postType != 'all') q = q.eq('post_type', postType);
+        if (authorType != 'all') q = q.eq('author_profile_type', authorType);
+
+        // Cursor: older than (created_at, id)
+        if (beforeCreatedAt != null) {
+          final ts = beforeCreatedAt.toIso8601String();
+          if (beforeId != null && beforeId.isNotEmpty) {
+            q = q.or(
+              'created_at.lt.$ts,and(created_at.eq.$ts,id.lt.$beforeId)',
+            );
+          } else {
+            q = q.lt('created_at', ts);
+          }
+        }
+
+        final data = await q
             .order('created_at', ascending: false)
+            .order('id', ascending: false)
             .limit(limit);
 
-        final list = (data as List).cast<Map<String, dynamic>>();
-
-        // Apply optional filters client-side
-        return list.where((p) {
-          final pt = p['post_type']?.toString() ?? '';
-          final at = p['author_profile_type']?.toString() ?? '';
-          if (postType != 'all' && pt != postType) return false;
-          if (authorType != 'all' && at != authorType) return false;
-          return true;
-        }).toList();
+        return (data as List).cast<Map<String, dynamic>>();
       }
 
-      // FOLLOWING scope: posts from accepted followed users + self
+      // FOLLOWING scope: posts from accepted followed users + self (server-side filters + cursor)
       final followed = await _db
           .from('follows')
           .select('followed_profile_id')
           .eq('follower_id', user.id)
-          .eq('status', 'accepted'); // ✅ important for request-based workflow
+          .eq('status', 'accepted');
 
       final ids = (followed as List)
           .map((e) => e['followed_profile_id'] as String?)
           .whereType<String>()
           .toSet();
 
-      ids.add(user.id); // include my own posts
+      ids.add(user.id);
       if (ids.isEmpty) return <Map<String, dynamic>>[];
 
-      // No visibility filter here — RLS will enforce followers visibility
-      final data = await _db
+      var q = _db
           .from('posts')
           .select('*, profiles(full_name, avatar_url)')
-          .inFilter('user_id', ids.toList())
+          .inFilter('user_id', ids.toList());
+
+      if (postType != 'all') q = q.eq('post_type', postType);
+      if (authorType != 'all') q = q.eq('author_profile_type', authorType);
+
+      if (beforeCreatedAt != null) {
+        final ts = beforeCreatedAt.toIso8601String();
+        if (beforeId != null && beforeId.isNotEmpty) {
+          q = q.or(
+            'created_at.lt.$ts,and(created_at.eq.$ts,id.lt.$beforeId)',
+          );
+        } else {
+          q = q.lt('created_at', ts);
+        }
+      }
+
+      final data = await q
           .order('created_at', ascending: false)
+          .order('id', ascending: false)
           .limit(limit);
 
-      final list = (data as List).cast<Map<String, dynamic>>();
-
-      return list.where((p) {
-        final pt = p['post_type']?.toString() ?? '';
-        final at = p['author_profile_type']?.toString() ?? '';
-        if (postType != 'all' && pt != postType) return false;
-        if (authorType != 'all' && at != authorType) return false;
-        return true;
-      }).toList();
+      return (data as List).cast<Map<String, dynamic>>();
     }
 
     // 3) Location exists: use RPC for distance-filtered feed
+    // ✅ NEW: pass cursor params (requires SQL function update)
     final rows = await _db.rpc('nearby_posts', params: {
       'p_lat': lat,
       'p_lng': lng,
@@ -185,6 +219,8 @@ class PostService {
       'p_author_type': authorType,
       'p_scope': scope == 'following' ? 'following' : 'public',
       'p_viewer_id': user.id,
+      'p_before_created_at': beforeCreatedAt?.toIso8601String(),
+      'p_before_id': beforeId,
     });
 
     return (rows as List).cast<Map<String, dynamic>>();

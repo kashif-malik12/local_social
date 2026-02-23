@@ -4,6 +4,12 @@
 // (1) Unread notifications badge in AppBar
 // (2) Global realtime subscription (starts in FeedScreen initState)
 // (3) YouTube thumbnail preview in feed (tap opens player modal)
+// (4) Cursor-based pagination (infinite scroll) + footer loader
+//
+// Notes:
+// - Uses PostService.fetchPublicFeed(limit, beforeCreatedAt, beforeId)
+// - Page size is 20 (tweakable)
+// - De-dupes by post.id in case realtime inserts happen while scrolling.
 
 import 'dart:async';
 
@@ -25,9 +31,18 @@ class FeedScreen extends StatefulWidget {
 }
 
 class _FeedScreenState extends State<FeedScreen> {
+  // Feed state
   bool _loading = true;
   String? _error;
   List<Post> _posts = [];
+
+  // ✅ Pagination state
+  static const int _pageSize = 20;
+  final ScrollController _scroll = ScrollController();
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  DateTime? _cursorCreatedAt;
+  String? _cursorId;
 
   // ✅ Filters
   String _selectedScope = 'all'; // 'all' or 'following'
@@ -42,12 +57,16 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _scroll.addListener(_onScroll);
+    _load(reset: true);
     _initNotificationsUnread();
   }
 
   @override
   void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+
     _notifDebounce?.cancel();
     final ch = _notifChannel;
     _notifChannel = null;
@@ -55,6 +74,17 @@ class _FeedScreenState extends State<FeedScreen> {
       Supabase.instance.client.removeChannel(ch);
     }
     super.dispose();
+  }
+
+  // -----------------------------
+  // Infinite scroll trigger
+  // -----------------------------
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    final pos = _scroll.position;
+    if (pos.pixels >= pos.maxScrollExtent - 350) {
+      _loadMore();
+    }
   }
 
   // -----------------------------
@@ -82,7 +112,7 @@ class _FeedScreenState extends State<FeedScreen> {
       if (!mounted) return;
       setState(() => _unreadNotifs = (rows as List).length);
     } catch (_) {
-      // keep silent; badge not critical to block feed
+      // badge not critical
     }
   }
 
@@ -90,7 +120,6 @@ class _FeedScreenState extends State<FeedScreen> {
     final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) return;
 
-    // avoid double subscription
     if (_notifChannel != null) return;
 
     final db = Supabase.instance.client;
@@ -106,11 +135,9 @@ class _FeedScreenState extends State<FeedScreen> {
             column: 'recipient_id',
             value: uid,
           ),
-          callback: (payload) {
-            // quick bump for instant UX
+          callback: (_) {
             if (mounted) setState(() => _unreadNotifs = _unreadNotifs + 1);
 
-            // debounce a refresh to stay correct in edge cases
             _notifDebounce?.cancel();
             _notifDebounce = Timer(const Duration(milliseconds: 450), () {
               _refreshUnreadNotifs();
@@ -161,7 +188,6 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   Future<void> _onBeforeLogout() async {
-    // Clean up realtime channel before logout (prevents warnings)
     final ch = _notifChannel;
     _notifChannel = null;
     if (ch != null) {
@@ -170,13 +196,22 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   // -----------------------------
-  // Feed load
+  // Feed load (reset + paginate)
   // -----------------------------
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  Future<void> _load({required bool reset}) async {
+    if (reset) {
+      setState(() {
+        _loading = true;
+        _error = null;
+        _posts = [];
+        _hasMore = true;
+        _loadingMore = false;
+        _cursorCreatedAt = null;
+        _cursorId = null;
+      });
+    } else {
+      setState(() => _loadingMore = true);
+    }
 
     try {
       final service = PostService(Supabase.instance.client);
@@ -185,19 +220,53 @@ class _FeedScreenState extends State<FeedScreen> {
         scope: _selectedScope,
         postType: _selectedPostType,
         authorType: _selectedAuthorType,
+        limit: _pageSize,
+        beforeCreatedAt: _cursorCreatedAt,
+        beforeId: _cursorId,
       );
 
+      final incoming = raw.map((e) => Post.fromMap(e)).toList();
+
+      // If we got fewer than a page, no more pages
+      final gotFullPage = incoming.length == _pageSize;
+      if (!gotFullPage) _hasMore = false;
+
+      // Update cursor from the oldest item in incoming list
+      if (incoming.isNotEmpty) {
+        final last = incoming.last;
+        _cursorCreatedAt = last.createdAt;
+        _cursorId = last.id;
+      }
+
+      // De-dupe by id (safe with realtime inserts)
+      final existingIds = _posts.map((p) => p.id).toSet();
+      final merged = <Post>[
+        ..._posts,
+        ...incoming.where((p) => !existingIds.contains(p.id)),
+      ];
+
+      if (!mounted) return;
       setState(() {
-        _posts = raw.map((e) => Post.fromMap(e)).toList();
+        _posts = merged;
+        _error = null;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
-        _posts = [];
       });
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+      });
     }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loading || _loadingMore || !_hasMore) return;
+    await _load(reset: false);
   }
 
   // ✅ Likes + comments row
@@ -271,7 +340,7 @@ class _FeedScreenState extends State<FeedScreen> {
             onChanged: (v) {
               if (v == null) return;
               setState(() => _selectedScope = v);
-              _load();
+              _load(reset: true);
             },
           ),
           DropdownButton<String>(
@@ -287,7 +356,7 @@ class _FeedScreenState extends State<FeedScreen> {
             onChanged: (v) {
               if (v == null) return;
               setState(() => _selectedPostType = v);
-              _load();
+              _load(reset: true);
             },
           ),
           DropdownButton<String>(
@@ -301,7 +370,7 @@ class _FeedScreenState extends State<FeedScreen> {
             onChanged: (v) {
               if (v == null) return;
               setState(() => _selectedAuthorType = v);
-              _load();
+              _load(reset: true);
             },
           ),
           TextButton.icon(
@@ -311,7 +380,7 @@ class _FeedScreenState extends State<FeedScreen> {
                 _selectedPostType = 'all';
                 _selectedAuthorType = 'all';
               });
-              _load();
+              _load(reset: true);
             },
             icon: const Icon(Icons.refresh),
             label: const Text('Reset'),
@@ -321,18 +390,28 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
+  Widget _buildFooter() {
+    if (!_hasMore) return const SizedBox(height: 24);
+    if (_loadingMore) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    // Small spacer so last card isn't stuck to bottom
+    return const SizedBox(height: 24);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // ✅ Sticky + reusable app bar
       appBar: GlobalAppBar(
         title: 'Local Feed ✅',
         notifBell: _notifBell(),
-        showBackIfPossible: false, // feed is home/root
+        showBackIfPossible: false,
         homeRoute: '/feed',
         onBeforeLogout: _onBeforeLogout,
       ),
-
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -344,13 +423,15 @@ class _FeedScreenState extends State<FeedScreen> {
                 )
               : RefreshIndicator(
                   onRefresh: () async {
-                    await _load();
+                    await _load(reset: true);
                     await _refreshUnreadNotifs();
                   },
                   child: ListView.builder(
-                    itemCount: _posts.length + 1,
+                    controller: _scroll,
+                    itemCount: _posts.length + 2, // filters + footer
                     itemBuilder: (_, i) {
                       if (i == 0) return _buildFilters();
+                      if (i == _posts.length + 1) return _buildFooter();
 
                       final p = _posts[i - 1];
                       final badgeText = _getAuthorBadgeType(p);
@@ -407,11 +488,9 @@ class _FeedScreenState extends State<FeedScreen> {
                                   ),
                                 ),
                               ),
-
                               const SizedBox(height: 6),
                               Text(p.content),
 
-                              // ✅ YouTube preview
                               if (p.videoUrl != null && p.videoUrl!.isNotEmpty) ...[
                                 YoutubePreview(videoUrl: p.videoUrl!),
                               ],
@@ -445,7 +524,7 @@ class _FeedScreenState extends State<FeedScreen> {
         onPressed: () async {
           final res = await context.push('/create-post');
           if (!mounted) return;
-          if (res == true) _load();
+          if (res == true) _load(reset: true);
         },
         icon: const Icon(Icons.add),
         label: const Text('Post'),

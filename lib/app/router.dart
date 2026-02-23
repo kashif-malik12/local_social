@@ -1,26 +1,33 @@
 // lib/app/router.dart
 //
-// ✅ Updated with Notifications route
-// Add this import:
-import '../screens/notifications_screen.dart'; // ✅ NEW
+// ✅ Updated with Notifications + Chat routes
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../app/go_router_refresh_stream.dart';
 
+// ✅ Screens
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/profile/presentation/complete_profile_screen.dart';
 import '../features/profile/presentation/profile_detail_screen.dart';
+import '../features/profile/presentation/follow_list_screen.dart';
+import '../features/profile/presentation/follow_requests_screen.dart';
+
 import '../screens/feed_screen.dart';
 import '../screens/create_post_screen.dart';
-import '../features/profile/presentation/follow_list_screen.dart';
 import '../screens/comments_screen.dart';
-import 'package:local_social/screens/search_screen.dart';
 import '../screens/post_detail_screen.dart';
-import '../features/profile/presentation/follow_requests_screen.dart';
+import '../screens/search_screen.dart';
+import '../screens/notifications_screen.dart';
+
+// ✅ Chat screens (ADD THESE FILES)
+import '../features/chat/presentation/chat_list_screen.dart';
+import '../features/chat/presentation/chat_screen.dart';
+import '../features/chat/presentation/chat_start_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final auth = Supabase.instance.client.auth;
@@ -79,20 +86,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
-      GoRoute(path: '/complete-profile', builder: (context, state) => const CompleteProfileScreen()),
+      GoRoute(
+        path: '/complete-profile',
+        builder: (context, state) => const CompleteProfileScreen(),
+      ),
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
       GoRoute(path: '/feed', builder: (context, state) => const FeedScreen()),
       GoRoute(path: '/create-post', builder: (context, state) => const CreatePostScreen()),
 
-      // ✅ NEW: notifications
+      // ✅ Notifications
       GoRoute(
         path: '/notifications',
         builder: (context, state) => const NotificationsScreen(),
       ),
-GoRoute(
-  path: '/follow-requests',
-  builder: (context, state) => const FollowRequestsScreen(),
-),
+
+      GoRoute(
+        path: '/follow-requests',
+        builder: (context, state) => const FollowRequestsScreen(),
+      ),
+
+      // ✅ My profile
       GoRoute(
         path: '/profile',
         builder: (context, state) {
@@ -100,10 +113,32 @@ GoRoute(
           return ProfileDetailScreen(profileId: uid);
         },
       ),
+
+      // ✅ Chat
+      GoRoute(
+        path: '/chats',
+        builder: (context, state) => const ChatListScreen(),
+      ),
+      GoRoute(
+        path: '/chat/:conversationId',
+        builder: (context, state) {
+          final id = state.pathParameters['conversationId']!;
+          return ChatScreen(conversationId: id);
+        },
+      ),
+      GoRoute(
+        path: '/chat/user/:userId',
+        builder: (context, state) {
+          final userId = state.pathParameters['userId']!;
+          return ChatStartScreen(otherUserId: userId);
+        },
+      ),
+
       GoRoute(
         path: '/profile/edit',
         builder: (context, state) => const CompleteProfileScreen(),
       ),
+
       GoRoute(
         path: '/search',
         builder: (context, state) => const SearchScreen(),
@@ -132,13 +167,14 @@ GoRoute(
           return FollowListScreen(profileId: id, mode: FollowListMode.following);
         },
       ),
-GoRoute(
-  path: '/post/:id',
-  builder: (context, state) {
-    final id = state.pathParameters['id']!;
-    return PostDetailScreen(postId: id);
-  },
-),
+
+      GoRoute(
+        path: '/post/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return PostDetailScreen(postId: id);
+        },
+      ),
       GoRoute(
         path: '/post/:id/comments',
         builder: (context, state) {

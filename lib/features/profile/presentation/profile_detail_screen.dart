@@ -11,7 +11,7 @@ import '../../../services/reaction_service.dart';
 import '../../../services/follow_service.dart';
 import '../../../services/portfolio_service.dart';
 import '../../../widgets/youtube_preview.dart';
-import '../../../widgets/global_app_bar.dart'; // ✅ NEW
+import '../../../widgets/global_app_bar.dart';
 
 class ProfileDetailScreen extends StatefulWidget {
   final String profileId; // ✅ in your app this equals auth uid
@@ -30,6 +30,10 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   Map<String, dynamic>? _profile;
   bool _isMe = false;
   FollowStatus _followStatus = FollowStatus.none;
+
+  // ✅ Messaging permission (mutual follow)
+  bool _canMessage = false;
+  bool _canMessageLoading = true;
 
   int _followersCount = 0;
   int _followingCount = 0;
@@ -75,6 +79,48 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     await _loadPortfolioIfEligible();
   }
 
+  // =========================
+  // ✅ MESSAGING PERMISSION
+  // =========================
+  Future<void> _loadCanMessage() async {
+    // default safe
+    if (!mounted) return;
+    setState(() {
+      _canMessage = false;
+      _canMessageLoading = true;
+    });
+
+    if (_isMe) {
+      if (!mounted) return;
+      setState(() {
+        _canMessage = false;
+        _canMessageLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final res = await _db.rpc('can_message_me', params: {
+        'p_other_user_id': widget.profileId,
+      });
+
+      if (!mounted) return;
+      setState(() {
+        _canMessage = (res as bool);
+        _canMessageLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _canMessage = false;
+        _canMessageLoading = false;
+      });
+    }
+  }
+
+  // =========================
+  // ✅ FOLLOW REQUESTS BADGE
+  // =========================
   Future<void> _refreshPendingRequests() async {
     final me = _db.auth.currentUser?.id;
     if (me == null) return;
@@ -120,6 +166,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       ..subscribe();
   }
 
+  // =========================
+  // ✅ LOAD PROFILE + FOLLOW
+  // =========================
   Future<void> _loadProfileAndFollow() async {
     setState(() {
       _loading = true;
@@ -130,14 +179,13 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       final myUserId = _db.auth.currentUser!.id;
 
       // ✅ Your schema: profiles.id == auth uid
-      final p = await _db
-          .from('profiles')
-          .select('*')
-          .eq('id', widget.profileId)
-          .single();
+      final p = await _db.from('profiles').select('*').eq('id', widget.profileId).single();
       _profile = p;
 
       _isMe = (widget.profileId == myUserId);
+
+      // ✅ Messaging permission (mutual follow)
+      await _loadCanMessage();
 
       final follow = FollowService(_db);
 
@@ -164,6 +212,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     }
   }
 
+  // =========================
+  // ✅ POSTS
+  // =========================
   Future<void> _loadPosts() async {
     setState(() {
       _postsLoading = true;
@@ -177,9 +228,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           .eq('user_id', widget.profileId)
           .order('created_at', ascending: false);
 
-      final list = (rows as List)
-          .map((e) => Post.fromMap(e as Map<String, dynamic>))
-          .toList();
+      final list = (rows as List).map((e) => Post.fromMap(e as Map<String, dynamic>)).toList();
 
       if (mounted) setState(() => _posts = list);
     } catch (e) {
@@ -189,6 +238,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     }
   }
 
+  // =========================
+  // ✅ FOLLOW TOGGLE
+  // =========================
   Future<void> _toggleFollow() async {
     if (_isMe) return;
 
@@ -209,6 +261,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
       _followersCount = await follow.followersCount(widget.profileId);
       _followingCount = await follow.followingCount(widget.profileId);
+
+      // ✅ follow state changed => refresh messaging permission
+      await _loadCanMessage();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -295,8 +350,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 right: -6,
                 top: -6,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.primary,
                     borderRadius: BorderRadius.circular(12),
@@ -338,10 +392,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   // =========================
   // ✅ PORTFOLIO: LOAD / ADD / DELETE / UI
   // =========================
-
   bool _canHavePortfolio() {
-    final type =
-        (_profile?['profile_type'] ?? _profile?['account_type'] ?? '').toString();
+    final type = (_profile?['profile_type'] ?? _profile?['account_type'] ?? '').toString();
     return type == 'business' || type == 'org';
   }
 
@@ -500,13 +552,11 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           children: [
             Text('Portfolio', style: Theme.of(context).textTheme.titleMedium),
             const Spacer(),
-            Text('${_portfolio.length}/5',
-                style: TextStyle(color: Theme.of(context).hintColor)),
+            Text('${_portfolio.length}/5', style: TextStyle(color: Theme.of(context).hintColor)),
             const SizedBox(width: 8),
             if (canAdd)
               ElevatedButton.icon(
-                onPressed:
-                    _portfolioActionLoading ? null : _pickAndUploadPortfolioImage,
+                onPressed: _portfolioActionLoading ? null : _pickAndUploadPortfolioImage,
                 icon: _portfolioActionLoading
                     ? const SizedBox(
                         width: 16,
@@ -521,9 +571,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         const SizedBox(height: 10),
         if (_portfolio.isEmpty)
           Text(
-            _isMe
-                ? 'Add up to 5 photos to your portfolio.'
-                : 'No portfolio photos yet.',
+            _isMe ? 'Add up to 5 photos to your portfolio.' : 'No portfolio photos yet.',
             style: TextStyle(color: Theme.of(context).hintColor),
           )
         else
@@ -573,20 +621,17 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
     final name = (_profile?['full_name'] ?? 'Profile').toString();
     final bio = (_profile?['bio'] ?? '').toString();
-    final type =
-        (_profile?['profile_type'] ?? _profile?['account_type'] ?? '').toString();
+    final type = (_profile?['profile_type'] ?? _profile?['account_type'] ?? '').toString();
 
     // ✅ Allow opening follower/following lists ONLY on my own profile
     final canOpenLists = _isMe;
 
     return Scaffold(
-      // ✅ Global sticky app bar (title is clickable -> /feed)
       appBar: const GlobalAppBar(
         title: 'Local Feed ✅',
         showBackIfPossible: true,
         homeRoute: '/feed',
       ),
-
       body: RefreshIndicator(
         onRefresh: _loadAll,
         child: ListView(
@@ -608,9 +653,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 Expanded(
                   child: _clickableStat(
                     enabled: canOpenLists,
-                    onTap: canOpenLists
-                        ? () => context.push('/p/${widget.profileId}/followers')
-                        : null,
+                    onTap: canOpenLists ? () => context.push('/p/${widget.profileId}/followers') : null,
                     child: _StatTile(label: 'Followers', value: _followersCount),
                   ),
                 ),
@@ -618,9 +661,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 Expanded(
                   child: _clickableStat(
                     enabled: canOpenLists,
-                    onTap: canOpenLists
-                        ? () => context.push('/p/${widget.profileId}/following')
-                        : null,
+                    onTap: canOpenLists ? () => context.push('/p/${widget.profileId}/following') : null,
                     child: _StatTile(label: 'Following', value: _followingCount),
                   ),
                 ),
@@ -638,14 +679,39 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             const SizedBox(height: 16),
 
             if (!_isMe)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: (_loading || _followStatus == FollowStatus.pending)
-                      ? null
-                      : _toggleFollow,
-                  child: Text(_followButtonText()),
-                ),
+              Column(
+                children: [
+                  // ✅ Message button (only when mutual follow accepted)
+                  if (!_canMessageLoading && _canMessage) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => context.push('/chat/user/${widget.profileId}'),
+                        icon: const Icon(Icons.message_outlined),
+                        label: const Text('Message'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+
+                  // ✅ Follow button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: (_loading || _followStatus == FollowStatus.pending) ? null : _toggleFollow,
+                      child: Text(_followButtonText()),
+                    ),
+                  ),
+
+                  if (!_canMessageLoading && !_canMessage) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Message is available after you both follow each other.',
+                      style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ],
               )
             else
               Column(
@@ -732,8 +798,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                         _buildReactionsRow(p),
                         const SizedBox(height: 8),
                         if (p.locationName != null)
-                          Text('📍 ${p.locationName}',
-                              style: const TextStyle(fontSize: 12)),
+                          Text('📍 ${p.locationName}', style: const TextStyle(fontSize: 12)),
                         Text(
                           p.createdAt.toLocal().toString(),
                           style: const TextStyle(fontSize: 12),

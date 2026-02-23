@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../app/chat_singletons.dart';
+
 class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
 
@@ -60,6 +62,43 @@ class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         if (notifBell != null) notifBell!,
 
+        // ✅ Chat icon + unread badge
+        ValueListenableBuilder<int>(
+          valueListenable: unreadBadgeController.unread,
+          builder: (context, count, _) {
+            return IconButton(
+              tooltip: 'Messages',
+              onPressed: () => context.push('/chats'),
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.chat_bubble_outline),
+                  if (count > 0)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          count > 99 ? '99+' : '$count',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+
         IconButton(
           tooltip: 'My profile',
           icon: const Icon(Icons.person),
@@ -80,6 +119,10 @@ class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
             if (onBeforeLogout != null) {
               await onBeforeLogout!();
             }
+
+            // Optional: clear badge controller on logout
+            unreadBadgeController.dispose();
+
             await Supabase.instance.client.auth.signOut();
             if (!context.mounted) return;
             context.go('/login');

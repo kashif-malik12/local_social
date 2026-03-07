@@ -4,17 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../core/restaurant_categories.dart';
+import '../core/business_categories.dart';
 import '../widgets/global_app_bar.dart';
 
-class RestaurantsScreen extends StatefulWidget {
-  const RestaurantsScreen({super.key});
+class BusinessesScreen extends StatefulWidget {
+  const BusinessesScreen({super.key});
 
   @override
-  State<RestaurantsScreen> createState() => _RestaurantsScreenState();
+  State<BusinessesScreen> createState() => _BusinessesScreenState();
 }
 
-class _RestaurantsScreenState extends State<RestaurantsScreen> {
+class _BusinessesScreenState extends State<BusinessesScreen> {
   bool _loading = true;
   String? _error;
   String _search = '';
@@ -24,7 +24,13 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
 
   double? _meLat;
   double? _meLng;
-  List<Map<String, dynamic>> _restaurants = [];
+  List<Map<String, dynamic>> _businesses = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   @override
   void dispose() {
@@ -32,11 +38,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
     super.dispose();
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  double _toRad(double d) => d * math.pi / 180;
 
   double _distanceKm(double lat1, double lng1, double lat2, double lng2) {
     const earth = 6371.0;
@@ -50,8 +52,6 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
     final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     return earth * c;
   }
-
-  double _toRad(double d) => d * math.pi / 180;
 
   Future<void> _load() async {
     setState(() {
@@ -77,8 +77,10 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
       try {
         final data = await db
             .from('profiles')
-            .select('id, full_name, bio, avatar_url, city, latitude, longitude, is_restaurant, restaurant_type, account_type')
-            .eq('is_restaurant', true)
+            .select(
+                'id, full_name, bio, avatar_url, city, latitude, longitude, account_type, is_restaurant, business_type')
+            .eq('account_type', 'business')
+            .eq('is_restaurant', false)
             .order('full_name');
         rows = (data as List).cast<Map<String, dynamic>>();
       } on PostgrestException {
@@ -87,13 +89,18 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
             .select('id, full_name, bio, avatar_url, city, latitude, longitude, account_type')
             .eq('account_type', 'business')
             .order('full_name');
-        rows = (data as List).cast<Map<String, dynamic>>();
+
+        rows = (data as List)
+            .cast<Map<String, dynamic>>()
+            .where((r) => r['is_restaurant'] != true)
+            .toList();
       }
 
       var items = rows;
+
       if (_selectedCategory != 'all') {
         items = items
-            .where((r) => (r['restaurant_type'] ?? '').toString() == _selectedCategory)
+            .where((r) => (r['business_type'] ?? '').toString() == _selectedCategory)
             .toList();
       }
 
@@ -103,7 +110,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
           return (r['full_name'] ?? '').toString().toLowerCase().contains(q) ||
               (r['bio'] ?? '').toString().toLowerCase().contains(q) ||
               (r['city'] ?? '').toString().toLowerCase().contains(q) ||
-              restaurantCategoryLabel((r['restaurant_type'] ?? '').toString())
+              businessCategoryLabel((r['business_type'] ?? '').toString())
                   .toLowerCase()
                   .contains(q);
         }).toList();
@@ -133,7 +140,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
       }
 
       if (!mounted) return;
-      setState(() => _restaurants = items);
+      setState(() => _businesses = items);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -147,7 +154,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const GlobalAppBar(
-        title: 'Restaurants',
+        title: 'Businesses',
         showBackIfPossible: true,
         homeRoute: '/feed',
       ),
@@ -158,7 +165,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
-                hintText: 'Search restaurants...',
+                hintText: 'Search businesses...',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _search.isEmpty
                     ? null
@@ -183,9 +190,9 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
             child: DropdownButtonFormField<String>(
               value: _selectedCategory,
               items: [
-                const DropdownMenuItem(value: 'all', child: Text('All types')),
-                ...restaurantMainCategories.map(
-                  (c) => DropdownMenuItem(value: c, child: Text(restaurantCategoryLabel(c))),
+                const DropdownMenuItem(value: 'all', child: Text('All categories')),
+                ...businessMainCategories.map(
+                  (c) => DropdownMenuItem(value: c, child: Text(businessCategoryLabel(c))),
                 ),
               ],
               onChanged: (v) {
@@ -195,7 +202,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
               },
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
-                labelText: 'Restaurant type',
+                labelText: 'Business category',
               ),
             ),
           ),
@@ -225,41 +232,39 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
                     ? Center(child: Text('Error: $_error'))
-                    : _restaurants.isEmpty
-                        ? const Center(child: Text('No restaurants found'))
+                    : _businesses.isEmpty
+                        ? const Center(child: Text('No businesses found'))
                         : ListView.separated(
-                            itemCount: _restaurants.length,
+                            itemCount: _businesses.length,
                             separatorBuilder: (_, __) => const Divider(height: 1),
                             itemBuilder: (context, i) {
-                              final r = _restaurants[i];
-                              final lat = (r['latitude'] as num?)?.toDouble();
-                              final lng = (r['longitude'] as num?)?.toDouble();
-                              final dist = (_meLat != null && _meLng != null && lat != null && lng != null)
+                              final b = _businesses[i];
+                              final lat = (b['latitude'] as num?)?.toDouble();
+                              final lng = (b['longitude'] as num?)?.toDouble();
+                              final dist = (_meLat != null &&
+                                      _meLng != null &&
+                                      lat != null &&
+                                      lng != null)
                                   ? _distanceKm(_meLat!, _meLng!, lat, lng)
                                   : null;
 
-                              final id = (r['id'] ?? '').toString();
-                              
+                              final id = (b['id'] ?? '').toString();
+
                               return ListTile(
                                 onTap: id.isEmpty ? null : () => context.push('/p/$id'),
                                 leading: CircleAvatar(
-                                  backgroundImage: (r['avatar_url'] ?? '').toString().isNotEmpty
-                                      ? NetworkImage((r['avatar_url'] ?? '').toString())
+                                  backgroundImage: (b['avatar_url'] ?? '').toString().isNotEmpty
+                                      ? NetworkImage((b['avatar_url'] ?? '').toString())
                                       : null,
-                                  child: (r['avatar_url'] ?? '').toString().isEmpty
-                                      ? const Icon(Icons.storefront_outlined)
+                                  child: (b['avatar_url'] ?? '').toString().isEmpty
+                                      ? const Icon(Icons.business)
                                       : null,
                                 ),
-                                title: Row(
-                                  children: [
-                                    Expanded(child: Text((r['full_name'] ?? 'Restaurant').toString())),
-                                    const Icon(Icons.verified, color: Colors.green, size: 18),
-                                  ],
-                                ),
+                                title: Text((b['full_name'] ?? 'Business').toString()),
                                 subtitle: Text(
-                                  '${(r['restaurant_type'] ?? '').toString().isNotEmpty ? restaurantCategoryLabel((r['restaurant_type'] ?? '').toString()) : 'Restaurant'}'
+                                  '${(b['business_type'] ?? '').toString().isNotEmpty ? businessCategoryLabel((b['business_type'] ?? '').toString()) : 'Business'}'
                                   '${dist != null ? ' • ${dist.toStringAsFixed(1)} km' : ''}'
-                                  '${(r['city'] ?? '').toString().isNotEmpty ? ' • ${(r['city'] ?? '').toString()}' : ''}',
+                                  '${(b['city'] ?? '').toString().isNotEmpty ? ' • ${(b['city'] ?? '').toString()}' : ''}',
                                 ),
                               );
                             },

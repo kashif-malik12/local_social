@@ -32,6 +32,7 @@ import '../screens/gig_detail_screen.dart';
 import '../screens/food_ad_detail_screen.dart';
 import '../screens/foods_screen.dart';
 import '../screens/restaurants_screen.dart';
+import '../screens/businesses_screen.dart';
 
 // ✅ Chat screens
 import '../features/chat/presentation/chat_list_screen.dart';
@@ -170,6 +171,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
 
       GoRoute(
+        path: '/businesses',
+        builder: (context, state) => const BusinessesScreen(),
+      ),
+
+      GoRoute(
         path: '/foods',
         builder: (context, state) => const FoodsScreen(),
       ),
@@ -181,7 +187,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return FoodAdDetailScreen(postId: id);
         },
       ),
-      
+
       GoRoute(
         path: '/create-post',
         builder: (context, state) => const CreatePostScreen(),

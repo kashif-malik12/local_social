@@ -249,7 +249,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                                     : p.content.trim();
                                 final intent = p.marketIntent;
                                 final priceText = p.marketPrice != null
-                                    ? '\$${p.marketPrice!.toStringAsFixed(2)}'
+                                    ? '€${p.marketPrice!.toStringAsFixed(2)}'
                                     : (intent == 'buying' ? 'Looking to buy' : 'Price on request');
 
                                 return InkWell(

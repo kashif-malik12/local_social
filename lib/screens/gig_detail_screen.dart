@@ -105,7 +105,7 @@ class _GigDetailScreenState extends State<GigDetailScreen> {
                         const SizedBox(height: 8),
                         Text(
                           p.marketPrice != null
-                              ? '\$${p.marketPrice!.toStringAsFixed(2)}'
+                              ? '€${p.marketPrice!.toStringAsFixed(2)}'
                               : (p.postType == 'service_request'
                                   ? 'Budget open'
                                   : 'Rate on request'),

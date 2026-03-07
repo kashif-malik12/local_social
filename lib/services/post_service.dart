@@ -119,6 +119,14 @@ class PostService {
     try {
       await _db.from('posts').insert(payload);
     } on PostgrestException catch (e) {
+       // Some deployments still enforce an older post_type CHECK that uses
+      // 'food' instead of 'food_ad'. Retry with legacy value.
+      if (_isPostTypeConstraintError(e) && postType == 'food_ad') {
+        final legacy = Map<String, dynamic>.from(payload)..['post_type'] = 'food';
+        await _db.from('posts').insert(legacy);
+        return;
+      }
+
       // Backward-compatible fallback for deployments where optional columns
       // (video_url / post_type / author_profile_type / market_category / market_intent) are not migrated yet.
       if (!_isMissingColumnError(e)) rethrow;
@@ -133,6 +141,16 @@ class PostService {
         'image_url': imageUrl,
       });
     }
+  }
+
+  bool _isPostTypeConstraintError(PostgrestException e) {
+    final code = (e.code ?? '').trim();
+    final msg = e.message.toLowerCase();
+
+    return code == '23514' &&
+        msg.contains('post') &&
+        msg.contains('type') &&
+        msg.contains('check');
   }
 
   bool _isMissingColumnError(PostgrestException e) {
@@ -177,7 +195,10 @@ class PostService {
     final radiusKm = (me?['radius_km'] as int?) ?? 5;
 
     // 2) Fallback if location isn't set
-    if (lat == null || lng == null) {
+    // Also force direct query for food filter to support both legacy 'food'
+    // and newer 'food_ad' post_type values.
+    final forceDirectQuery = postType == 'food_ad';
+    if (lat == null || lng == null || forceDirectQuery) {
       if (scope != 'following') {
         // PUBLIC scope: only public posts (server-side filters + cursor)
         var q = _db
@@ -185,7 +206,13 @@ class PostService {
             .select('*, profiles(full_name, avatar_url)')
             .eq('visibility', 'public');
 
-        if (postType != 'all') q = q.eq('post_type', postType);
+        if (postType != 'all') {
+          if (postType == 'food_ad') {
+            q = q.inFilter('post_type', ['food_ad', 'food']);
+          } else {
+            q = q.eq('post_type', postType);
+          }
+        }
         if (authorType != 'all') q = q.eq('author_profile_type', authorType);
 
         // Cursor: older than (created_at, id)
@@ -228,7 +255,13 @@ class PostService {
           .select('*, profiles(full_name, avatar_url)')
           .inFilter('user_id', ids.toList());
 
-      if (postType != 'all') q = q.eq('post_type', postType);
+      if (postType != 'all') {
+        if (postType == 'food_ad') {
+          q = q.inFilter('post_type', ['food_ad', 'food']);
+        } else {
+          q = q.eq('post_type', postType);
+        }
+      }
       if (authorType != 'all') q = q.eq('author_profile_type', authorType);
 
       if (beforeCreatedAt != null) {

@@ -141,7 +141,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
 
     double? marketPrice;
-    if (_isMarketPost || _isServicePost && marketPriceRaw.isNotEmpty) {
+    if (_isFoodAdPost || _isMarketPost || (_isServicePost && marketPriceRaw.isNotEmpty)) {
       marketPrice = double.tryParse(marketPriceRaw);
       if (marketPrice == null || marketPrice < 0) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -317,7 +317,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       ? 'Food price'
                       : (_isServicePost ? 'Rate/Budget (optional)' : 'Price (optional)'),
                   hintText: _isFoodAdPost ? 'e.g. 12.99' : (_isServicePost ? 'e.g. 50' : 'e.g. 1200'),
-                  prefixText: '\$ ',
+                  prefixText: '€ ',
                 ),
               ),
               const SizedBox(height: 12),

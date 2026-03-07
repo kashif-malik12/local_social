@@ -43,7 +43,7 @@ class _FoodsScreenState extends State<FoodsScreen> {
       final data = await Supabase.instance.client
           .from('posts')
           .select('*, profiles(full_name, avatar_url)')
-          .eq('post_type', 'food_ad')
+          .inFilter('post_type', ['food_ad', 'food'])
           .order('created_at', ascending: false)
           .limit(150);
 
@@ -155,7 +155,7 @@ class _FoodsScreenState extends State<FoodsScreen> {
                                   ? p.marketTitle!.trim()
                                   : p.content.trim();
                               final price = p.marketPrice != null
-                                  ? '\$${p.marketPrice!.toStringAsFixed(2)}'
+                                  ? '€${p.marketPrice!.toStringAsFixed(2)}'
                                   : 'Price on request';
 
                               return InkWell(

@@ -34,7 +34,7 @@ class _FoodAdDetailScreenState extends State<FoodAdDetailScreen> {
           .from('posts')
           .select('*, profiles(full_name, avatar_url)')
           .eq('id', widget.postId)
-          .eq('post_type', 'food_ad')
+          .inFilter('post_type', ['food_ad', 'food'])
           .maybeSingle();
 
       if (row == null) throw Exception('Food ad not found');
@@ -83,7 +83,7 @@ class _FoodAdDetailScreenState extends State<FoodAdDetailScreen> {
                         const SizedBox(height: 8),
                         Text(
                           p.marketPrice != null
-                              ? '\$${p.marketPrice!.toStringAsFixed(2)}'
+                              ? '€${p.marketPrice!.toStringAsFixed(2)}'
                               : 'Price on request',
                           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),

@@ -441,6 +441,11 @@ class _FeedScreenState extends State<FeedScreen> {
             label: const Text('Restaurants'),
           ),
           OutlinedButton.icon(
+            onPressed: () => context.push('/businesses'),
+            icon: const Icon(Icons.business),
+            label: const Text('Businesses'),
+          ),
+          OutlinedButton.icon(
             onPressed: () => context.push('/foods'),
             icon: const Icon(Icons.fastfood),
             label: const Text('Foods'),

@@ -114,7 +114,7 @@ class _MarketplaceProductDetailScreenState
                         const SizedBox(height: 8),
                         Text(
                           p.marketPrice != null
-                              ? '\$${p.marketPrice!.toStringAsFixed(2)}'
+                              ? '€${p.marketPrice!.toStringAsFixed(2)}'
                               : (p.marketIntent == 'buying'
                                   ? 'Looking to buy'
                                   : 'Price on request'),

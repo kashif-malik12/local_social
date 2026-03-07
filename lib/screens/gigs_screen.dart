@@ -226,7 +226,7 @@ class _GigsScreenState extends State<GigsScreen> {
                                     ? p.marketTitle!.trim()
                                     : p.content.trim();
                                 final priceText = p.marketPrice != null
-                                    ? '\$${p.marketPrice!.toStringAsFixed(2)}'
+                                    ? '€${p.marketPrice!.toStringAsFixed(2)}'
                                     : (p.postType == 'service_request'
                                         ? 'Budget open'
                                         : 'Rate on request');

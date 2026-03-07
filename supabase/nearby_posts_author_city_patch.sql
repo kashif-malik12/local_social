@@ -1,0 +1,86 @@
+-- Patch your existing public.nearby_posts RPC to also return the author's city.
+--
+-- This repo does not contain the current nearby_posts function body, so this is a
+-- focused patch guide rather than a blind full replacement.
+--
+-- Apply these changes inside the existing nearby_posts SQL in Supabase:
+--
+-- 1. In the RETURNS TABLE(...) section, add:
+--      author_city text,
+--
+-- 2. In the SELECT list, add:
+--      pr.city as author_city,
+--
+-- 3. Make sure the profiles table is joined with alias pr, for example:
+--      join public.profiles pr on pr.id = p.user_id
+--
+-- Example shape:
+--
+-- create or replace function public.nearby_posts(
+--   p_lat double precision,
+--   p_lng double precision,
+--   p_radius_km double precision,
+--   p_limit integer,
+--   p_post_type text default 'all',
+--   p_author_type text default 'all',
+--   p_scope text default 'public',
+--   p_viewer_id uuid default null,
+--   p_before_created_at timestamptz default null,
+--   p_before_id uuid default null
+-- )
+-- returns table (
+--   id uuid,
+--   user_id uuid,
+--   content text,
+--   image_url text,
+--   video_url text,
+--   visibility text,
+--   location_name text,
+--   latitude double precision,
+--   longitude double precision,
+--   created_at timestamptz,
+--   author_name text,
+--   author_avatar_url text,
+--   author_profile_type text,
+--   author_city text,
+--   post_type text,
+--   market_category text,
+--   market_intent text,
+--   market_title text,
+--   market_price numeric,
+--   distance_km double precision
+-- )
+-- language sql
+-- security definer
+-- set search_path = public
+-- as $$
+--   select
+--     p.id,
+--     p.user_id,
+--     p.content,
+--     p.image_url,
+--     p.video_url,
+--     p.visibility,
+--     p.location_name,
+--     p.latitude,
+--     p.longitude,
+--     p.created_at,
+--     pr.full_name as author_name,
+--     pr.avatar_url as author_avatar_url,
+--     coalesce(pr.profile_type, pr.account_type) as author_profile_type,
+--     pr.city as author_city,
+--     p.post_type,
+--     p.market_category,
+--     p.market_intent,
+--     p.market_title,
+--     p.market_price,
+--     -- keep your existing distance calculation here
+--     distance_km
+--   from public.posts p
+--   join public.profiles pr on pr.id = p.user_id
+--   -- keep the rest of your existing filters / scope logic / cursor logic here
+-- $$;
+--
+-- After applying the function update, the feed will be able to render:
+--   "3.2 km • Paris"
+-- because the Flutter app already reads author_city.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:math' as math;
 
 import '../core/food_categories.dart';
 import '../models/post_model.dart';
@@ -20,6 +21,8 @@ class _FoodsScreenState extends State<FoodsScreen> {
   String _search = '';
   final _searchCtrl = TextEditingController();
   List<Post> _posts = [];
+  double? _meLat;
+  double? _meLng;
 
   @override
   void initState() {
@@ -33,6 +36,22 @@ class _FoodsScreenState extends State<FoodsScreen> {
     super.dispose();
   }
 
+  double _toRad(double d) => d * math.pi / 180;
+
+  double? _distanceKm(Post p) {
+    if (_meLat == null || _meLng == null) return null;
+    const earth = 6371.0;
+    final dLat = _toRad(p.latitude - _meLat!);
+    final dLng = _toRad(p.longitude - _meLng!);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_toRad(_meLat!)) *
+            math.cos(_toRad(p.latitude)) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earth * c;
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -40,9 +59,20 @@ class _FoodsScreenState extends State<FoodsScreen> {
     });
 
     try {
+      final me = Supabase.instance.client.auth.currentUser?.id;
+      if (me != null) {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('latitude, longitude')
+            .eq('id', me)
+            .maybeSingle();
+        _meLat = (profile?['latitude'] as num?)?.toDouble();
+        _meLng = (profile?['longitude'] as num?)?.toDouble();
+      }
+
       final data = await Supabase.instance.client
           .from('posts')
-          .select('*, profiles(full_name, avatar_url)')
+          .select('*, profiles(full_name, avatar_url, city, zipcode)')
           .inFilter('post_type', ['food_ad', 'food'])
           .order('created_at', ascending: false)
           .limit(150);
@@ -151,6 +181,7 @@ class _FoodsScreenState extends State<FoodsScreen> {
                             itemCount: _posts.length,
                             itemBuilder: (context, index) {
                               final p = _posts[index];
+                              final distanceKm = _distanceKm(p);
                               final title = (p.marketTitle ?? '').trim().isNotEmpty
                                   ? p.marketTitle!.trim()
                                   : p.content.trim();
@@ -207,6 +238,26 @@ class _FoodsScreenState extends State<FoodsScreen> {
                                                 color: Colors.grey.shade700,
                                               ),
                                             ),
+                                            if ((p.authorCity ?? '').trim().isNotEmpty ||
+                                                (p.authorZipcode ?? '').trim().isNotEmpty ||
+                                                distanceKm != null) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                [
+                                                  if ((p.authorCity ?? '').trim().isNotEmpty)
+                                                    p.authorCity!.trim(),
+                                                  if ((p.authorCity ?? '').trim().isEmpty &&
+                                                      (p.authorZipcode ?? '').trim().isNotEmpty)
+                                                    p.authorZipcode!.trim(),
+                                                  if (distanceKm != null)
+                                                    '${distanceKm.toStringAsFixed(1)} km',
+                                                ].join(' • '),
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.grey.shade600,
+                                                ),
+                                              ),
+                                            ],
                                           ],
                                         ),
                                       ),

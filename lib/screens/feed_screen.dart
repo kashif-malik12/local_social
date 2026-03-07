@@ -18,7 +18,9 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/post_model.dart';
+import '../core/business_categories.dart';
 import '../core/market_categories.dart';
+import '../core/restaurant_categories.dart';
 import '../services/post_service.dart';
 import '../services/reaction_service.dart';
 import '../widgets/youtube_preview.dart';
@@ -37,6 +39,8 @@ class _FeedScreenState extends State<FeedScreen> {
   bool _loading = true;
   String? _error;
   List<Post> _posts = [];
+  final Map<String, String> _authorBadgeLabels = {};
+  final Map<String, String> _authorLocationLabels = {};
 
   // ✅ Pagination state
   static const int _pageSize = 20;
@@ -300,6 +304,7 @@ class _FeedScreenState extends State<FeedScreen> {
         _posts = merged;
         _error = null;
       });
+      await _loadAuthorBadges(merged);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -368,9 +373,113 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   String? _getAuthorBadgeType(Post post) {
-    if (post.authorType == 'business') return 'BUSINESS';
-    if (post.authorType == 'org') return 'ORG';
-    return null;
+    return _authorBadgeLabels[post.userId];
+  }
+
+  Future<void> _loadAuthorBadges(List<Post> posts) async {
+    final ids = posts.map((p) => p.userId).toSet().toList();
+
+    if (ids.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _authorBadgeLabels.clear();
+        _authorLocationLabels.clear();
+      });
+      return;
+    }
+
+    try {
+      final rows = await Supabase.instance.client
+          .from('profiles')
+          .select(
+            'id, profile_type, account_type, is_restaurant, restaurant_type, business_type, city, zipcode',
+          )
+          .inFilter('id', ids);
+
+      final labels = <String, String>{};
+      final locations = <String, String>{};
+      for (final row in (rows as List).cast<Map<String, dynamic>>()) {
+        final id = (row['id'] ?? '').toString();
+        if (id.isEmpty) continue;
+
+        final city = (row['city'] ?? '').toString().trim();
+        final zipcode = (row['zipcode'] ?? '').toString().trim();
+        final location = city.isNotEmpty ? city : zipcode;
+        if (location.isNotEmpty) {
+          locations[id] = location;
+        }
+
+        final type =
+            ((row['profile_type'] ?? row['account_type']) ?? '').toString();
+
+        if (type == 'org') {
+          labels[id] = 'ORGANIZATION';
+          continue;
+        }
+
+        if (type != 'business') continue;
+
+        final isRestaurant = row['is_restaurant'] == true;
+        if (isRestaurant) {
+          final restaurantType = (row['restaurant_type'] ?? '').toString();
+          labels[id] = restaurantType.isNotEmpty
+              ? restaurantCategoryLabel(restaurantType)
+              : 'Restaurant';
+          continue;
+        }
+
+        final businessType = (row['business_type'] ?? '').toString();
+        labels[id] = businessType.isNotEmpty
+            ? businessCategoryLabel(businessType)
+            : 'Business';
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _authorBadgeLabels
+          ..clear()
+          ..addAll(labels);
+        _authorLocationLabels
+          ..clear()
+          ..addAll(locations);
+      });
+    } catch (_) {
+      // Badge enrichment is optional. Keep existing feed if this fails.
+    }
+  }
+
+  bool _isPrivateListing(Post post) {
+    return post.postType == 'market' ||
+        post.postType == 'service_offer' ||
+        post.postType == 'service_request';
+  }
+
+  String _feedHeaderLabel(Post post) {
+    switch (post.postType) {
+      case 'market':
+        return 'Marketplace listing';
+      case 'service_offer':
+        return 'Service offer';
+      case 'service_request':
+        return 'Service request';
+      default:
+        return post.authorName ?? 'Unknown';
+    }
+  }
+
+  String? _detailRouteForPost(Post post) {
+    switch (post.postType) {
+      case 'market':
+        return '/marketplace/product/${post.id}';
+      case 'service_offer':
+      case 'service_request':
+        return '/gigs/service/${post.id}';
+      case 'food_ad':
+      case 'food':
+        return '/foods/${post.id}';
+      default:
+        return null;
+    }
   }
 
   Widget _buildFilters() {
@@ -479,6 +588,87 @@ class _FeedScreenState extends State<FeedScreen> {
     return const SizedBox(height: 24);
   }
 
+  Widget _buildAuthorBadge(String text) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 140),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.amber.withOpacity(0.14),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.amber.withOpacity(0.4)),
+        ),
+        child: Text(
+          text,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            height: 1.1,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatFeedTimestamp(DateTime dt) {
+    final local = dt.toLocal();
+    final now = DateTime.now();
+    final diff = now.difference(local);
+
+    if (diff.inMinutes < 1) return 'now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  String? _locationLabel(Post post) {
+    final loaded = (_authorLocationLabels[post.userId] ?? '').trim();
+    if (loaded.isNotEmpty) return loaded;
+
+    final city = (post.authorCity ?? '').trim();
+    if (city.isNotEmpty) return city;
+
+    final zipcode = (post.authorZipcode ?? '').trim();
+    if (zipcode.isNotEmpty) return zipcode;
+
+    return null;
+  }
+
+  void _openImagePreview(String imageUrl) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        insetPadding: const EdgeInsets.all(12),
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.8,
+              maxScale: 4,
+              child: Center(
+                child: Image.network(imageUrl, fit: BoxFit.contain),
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -512,6 +702,8 @@ class _FeedScreenState extends State<FeedScreen> {
 
                       final p = _posts[i - 1];
                       final badgeText = _getAuthorBadgeType(p);
+                      final isPrivateListing = _isPrivateListing(p);
+                      final detailRoute = _detailRouteForPost(p);
 
                       return Card(
                         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -521,7 +713,9 @@ class _FeedScreenState extends State<FeedScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               InkWell(
-                                onTap: () => context.push('/p/${p.userId}'),
+                                onTap: isPrivateListing
+                                    ? null
+                                    : () => context.push('/p/${p.userId}'),
                                 borderRadius: BorderRadius.circular(8),
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 4),
@@ -541,7 +735,7 @@ class _FeedScreenState extends State<FeedScreen> {
                                       const SizedBox(width: 10),
                                       Expanded(
                                         child: Text(
-                                          p.authorName ?? 'Unknown',
+                                          _feedHeaderLabel(p),
                                           style: const TextStyle(fontWeight: FontWeight.bold),
                                         ),
                                       ),
@@ -552,15 +746,15 @@ class _FeedScreenState extends State<FeedScreen> {
                                         ),
                                         const SizedBox(width: 8),
                                       ],
-                                      if (badgeText != null) ...[
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(20),
-                                            border: Border.all(),
-                                          ),
-                                          child: Text(badgeText, style: const TextStyle(fontSize: 12)),
+                                      if (_locationLabel(p) != null) ...[
+                                        Text(
+                                          _locationLabel(p)!,
+                                          style: const TextStyle(fontSize: 12),
                                         ),
+                                        const SizedBox(width: 8),
+                                      ],
+                                      if (badgeText != null) ...[
+                                        _buildAuthorBadge(badgeText),
                                         const SizedBox(width: 6),
                                       ],
 
@@ -605,9 +799,13 @@ class _FeedScreenState extends State<FeedScreen> {
 
                               if (p.imageUrl != null) ...[
                                 const SizedBox(height: 10),
-                                ClipRRect(
+                                InkWell(
+                                  onTap: () => _openImagePreview(p.imageUrl!),
                                   borderRadius: BorderRadius.circular(12),
-                                  child: Image.network(p.imageUrl!, fit: BoxFit.cover),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.network(p.imageUrl!, fit: BoxFit.cover),
+                                  ),
                                 ),
                               ],
 
@@ -631,8 +829,31 @@ class _FeedScreenState extends State<FeedScreen> {
                                   'Category: ${marketCategoryLabel(p.marketCategory!)}',
                                   style: const TextStyle(fontSize: 12),
                                 ),
+                              if (detailRoute != null) ...[
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => context.push(detailRoute),
+                                    icon: Icon(
+                                      p.postType == 'market'
+                                          ? Icons.storefront_outlined
+                                          : (p.postType == 'food_ad' || p.postType == 'food')
+                                              ? Icons.fastfood
+                                              : Icons.miscellaneous_services_outlined,
+                                    ),
+                                    label: Text(
+                                      p.postType == 'market'
+                                          ? 'Open product'
+                                          : (p.postType == 'food_ad' || p.postType == 'food')
+                                              ? 'Open food'
+                                              : 'Open gig',
+                                    ),
+                                  ),
+                                ),
+                              ],
                               Text(
-                                p.createdAt.toLocal().toString(),
+                                _formatFeedTimestamp(p.createdAt),
                                 style: const TextStyle(fontSize: 12),
                               ),
                             ],

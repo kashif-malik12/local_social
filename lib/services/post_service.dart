@@ -203,7 +203,7 @@ class PostService {
         // PUBLIC scope: only public posts (server-side filters + cursor)
         var q = _db
             .from('posts')
-            .select('*, profiles(full_name, avatar_url)')
+            .select('*, profiles(full_name, avatar_url, city, zipcode)')
             .eq('visibility', 'public');
 
         if (postType != 'all') {
@@ -252,7 +252,7 @@ class PostService {
 
       var q = _db
           .from('posts')
-          .select('*, profiles(full_name, avatar_url)')
+          .select('*, profiles(full_name, avatar_url, city, zipcode)')
           .inFilter('user_id', ids.toList());
 
       if (postType != 'all') {
@@ -285,7 +285,7 @@ class PostService {
 
     // 3) Location exists: use RPC for distance-filtered feed
     // ✅ NEW: pass cursor params (requires SQL function update)
-    final rows = await _db.rpc('nearby_posts', params: {
+    final rows = await _db.rpc('nearby_posts_city', params: {
       'p_lat': lat,
       'p_lng': lng,
       'p_radius_km': radiusKm.toDouble(),

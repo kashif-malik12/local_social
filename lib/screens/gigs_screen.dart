@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:math' as math;
 
 import '../core/service_categories.dart';
 import '../models/post_model.dart';
@@ -21,6 +22,8 @@ class _GigsScreenState extends State<GigsScreen> {
   String _search = '';
   final TextEditingController _searchCtrl = TextEditingController();
   List<Post> _posts = [];
+  double? _meLat;
+  double? _meLng;
 
   @override
   void dispose() {
@@ -37,6 +40,22 @@ class _GigsScreenState extends State<GigsScreen> {
     return '';
   }
 
+  double _toRad(double d) => d * math.pi / 180;
+
+  double? _distanceKm(Post p) {
+    if (_meLat == null || _meLng == null) return null;
+    const earth = 6371.0;
+    final dLat = _toRad(p.latitude - _meLat!);
+    final dLng = _toRad(p.longitude - _meLng!);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_toRad(_meLat!)) *
+            math.cos(_toRad(p.latitude)) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earth * c;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -50,9 +69,20 @@ class _GigsScreenState extends State<GigsScreen> {
     });
 
     try {
+      final me = Supabase.instance.client.auth.currentUser?.id;
+      if (me != null) {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('latitude, longitude')
+            .eq('id', me)
+            .maybeSingle();
+        _meLat = (profile?['latitude'] as num?)?.toDouble();
+        _meLng = (profile?['longitude'] as num?)?.toDouble();
+      }
+
       final data = await Supabase.instance.client
           .from('posts')
-          .select('*, profiles(full_name, avatar_url)')
+          .select('*, profiles(full_name, avatar_url, city, zipcode)')
           .inFilter('post_type', ['service_offer', 'service_request'])
           .order('created_at', ascending: false)
           .limit(120);
@@ -221,7 +251,9 @@ class _GigsScreenState extends State<GigsScreen> {
                               itemCount: _posts.length,
                               itemBuilder: (context, index) {
                                 final p = _posts[index];
-                                final provider = (p.authorName ?? 'Unknown').trim();
+                                final myId = Supabase.instance.client.auth.currentUser?.id;
+                                final canSendOffer = myId != null && p.userId != myId;
+                                final distanceKm = _distanceKm(p);
                                 final title = (p.marketTitle ?? '').trim().isNotEmpty
                                     ? p.marketTitle!.trim()
                                     : p.content.trim();
@@ -289,21 +321,45 @@ class _GigsScreenState extends State<GigsScreen> {
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'By: $provider',
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey.shade700,
-                                                ),
-                                              ),
                                               Text(
                                                 _typeLabel(p.postType),
                                                 style: TextStyle(
                                                   fontSize: 11,
                                                   color: Colors.grey.shade600,
+                                                ),
+                                              ),
+                                              if ((p.authorCity ?? '').trim().isNotEmpty ||
+                                                  (p.authorZipcode ?? '').trim().isNotEmpty ||
+                                                  distanceKm != null)
+                                                Text(
+                                                  [
+                                                    if ((p.authorCity ?? '').trim().isNotEmpty)
+                                                      p.authorCity!.trim(),
+                                                    if ((p.authorCity ?? '').trim().isEmpty &&
+                                                        (p.authorZipcode ?? '').trim().isNotEmpty)
+                                                      p.authorZipcode!.trim(),
+                                                    if (distanceKm != null)
+                                                      '${distanceKm.toStringAsFixed(1)} km',
+                                                  ].join(' • '),
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.grey.shade600,
+                                                  ),
+                                                ),
+                                              const SizedBox(height: 8),
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: OutlinedButton.icon(
+                                                  onPressed: canSendOffer
+                                                      ? () => context.push(
+                                                            '/offer-chat/post/${p.id}/user/${p.userId}',
+                                                          )
+                                                      : null,
+                                                  icon: const Icon(
+                                                    Icons.local_offer_outlined,
+                                                    size: 16,
+                                                  ),
+                                                  label: const Text('Send offer'),
                                                 ),
                                               ),
                                             ],

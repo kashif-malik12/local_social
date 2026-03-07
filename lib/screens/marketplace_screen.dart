@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:math' as math;
 
 import '../core/market_categories.dart';
 import '../models/post_model.dart';
@@ -21,6 +22,8 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   String _search = '';
   final TextEditingController _searchCtrl = TextEditingController();
   List<Post> _posts = [];
+  double? _meLat;
+  double? _meLng;
 
   @override
   void dispose() {
@@ -56,6 +59,45 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     return true;
   }
 
+  double? _priceFromContent(String raw) {
+    final patterns = [
+      RegExp(r'price\s*:\s*(\d+(?:[.,]\d{1,2})?)', caseSensitive: false),
+      RegExp(r'price\s*:\s*(?:eur|euro|€|\$)\s*(\d+(?:[.,]\d{1,2})?)',
+          caseSensitive: false),
+      RegExp(r'(?:eur|euro|€)\s*(\d+(?:[.,]\d{1,2})?)', caseSensitive: false),
+      RegExp(r'(\d+(?:[.,]\d{1,2})?)\s*eur', caseSensitive: false),
+    ];
+
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(raw);
+      if (match != null) {
+        final value = (match.group(1) ?? '').replaceAll(',', '.');
+        final parsed = double.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+    }
+
+    return null;
+  }
+
+  double _toRad(double d) => d * math.pi / 180;
+
+  double? _distanceKm(Post p) {
+    if (_meLat == null || _meLng == null) return null;
+    final lat2 = p.latitude;
+    final lng2 = p.longitude;
+    const earth = 6371.0;
+    final dLat = _toRad(lat2 - _meLat!);
+    final dLng = _toRad(lng2 - _meLng!);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_toRad(_meLat!)) *
+            math.cos(_toRad(lat2)) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earth * c;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -69,9 +111,20 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     });
 
     try {
+      final me = Supabase.instance.client.auth.currentUser?.id;
+      if (me != null) {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('latitude, longitude')
+            .eq('id', me)
+            .maybeSingle();
+        _meLat = (profile?['latitude'] as num?)?.toDouble();
+        _meLng = (profile?['longitude'] as num?)?.toDouble();
+      }
+
       final data = await Supabase.instance.client
           .from('posts')
-          .select('*, profiles(full_name, avatar_url)')
+          .select('*, profiles(full_name, avatar_url, city, zipcode)')
           .eq('post_type', 'market')
           .order('created_at', ascending: false)
           .limit(120);
@@ -243,14 +296,20 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                               itemCount: _posts.length,
                               itemBuilder: (context, index) {
                                 final p = _posts[index];
-                                final seller = (p.authorName ?? 'Unknown').trim();
+                                final myId = Supabase.instance.client.auth.currentUser?.id;
+                                final canSendOffer = myId != null && p.userId != myId;
                                 final title = (p.marketTitle ?? '').trim().isNotEmpty
                                     ? p.marketTitle!.trim()
                                     : p.content.trim();
                                 final intent = p.marketIntent;
-                                final priceText = p.marketPrice != null
-                                    ? '€${p.marketPrice!.toStringAsFixed(2)}'
-                                    : (intent == 'buying' ? 'Looking to buy' : 'Price on request');
+                                final effectivePrice =
+                                    p.marketPrice ?? _priceFromContent(p.content);
+                                final distanceKm = _distanceKm(p);
+                                final priceText = effectivePrice != null
+                                    ? 'EUR ${effectivePrice.toStringAsFixed(2)}'
+                                    : (intent == 'buying'
+                                        ? 'Looking to buy'
+                                        : 'Price on request');
 
                                 return InkWell(
                                   borderRadius: BorderRadius.circular(12),
@@ -310,15 +369,6 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                                                 ),
                                               ),
                                               const SizedBox(height: 4),
-                                              Text(
-                                                'Seller: $seller',
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey.shade700,
-                                                ),
-                                              ),
                                               if (intent != null && intent.isNotEmpty)
                                                 Text(
                                                   _intentLabel(intent),
@@ -327,6 +377,40 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                                                     color: Colors.grey.shade600,
                                                   ),
                                                 ),
+                                              if ((p.authorCity ?? '').trim().isNotEmpty ||
+                                                  (p.authorZipcode ?? '').trim().isNotEmpty ||
+                                                  distanceKm != null)
+                                                Text(
+                                                  [
+                                                    if ((p.authorCity ?? '').trim().isNotEmpty)
+                                                      p.authorCity!.trim(),
+                                                    if ((p.authorCity ?? '').trim().isEmpty &&
+                                                        (p.authorZipcode ?? '').trim().isNotEmpty)
+                                                      p.authorZipcode!.trim(),
+                                                    if (distanceKm != null)
+                                                      '${distanceKm.toStringAsFixed(1)} km',
+                                                  ].join(' • '),
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.grey.shade600,
+                                                  ),
+                                                ),
+                                              const SizedBox(height: 8),
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: OutlinedButton.icon(
+                                                  onPressed: canSendOffer
+                                                      ? () => context.push(
+                                                            '/offer-chat/post/${p.id}/user/${p.userId}',
+                                                          )
+                                                      : null,
+                                                  icon: const Icon(
+                                                    Icons.local_offer_outlined,
+                                                    size: 16,
+                                                  ),
+                                                  label: const Text('Send offer'),
+                                                ),
+                                              ),
                                             ],
                                           ),
                                         ),

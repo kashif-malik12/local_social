@@ -20,6 +20,8 @@ class Post {
   final String? authorName;
   final String? authorAvatarUrl;
   final String? authorType;
+  final String? authorCity;
+  final String? authorZipcode;
 
   // Post type + distance (distance comes from RPC)
   final String? postType;
@@ -43,6 +45,8 @@ class Post {
     this.authorName,
     this.authorAvatarUrl,
     this.authorType,
+    this.authorCity,
+    this.authorZipcode,
     this.postType,
     this.marketCategory,
     this.marketIntent,
@@ -67,6 +71,14 @@ class Post {
         (map['author_avatar_url'] as String?) ??
         (profile is Map ? profile['avatar_url'] as String? : null);
 
+    final String? authorCity =
+        (map['author_city'] as String?) ??
+        (profile is Map ? profile['city'] as String? : null);
+
+    final String? authorZipcode =
+        (map['author_zipcode'] as String?) ??
+        (profile is Map ? profile['zipcode'] as String? : null);
+
     return Post(
       id: map['id'] as String,
       userId: map['user_id'] as String,
@@ -86,6 +98,8 @@ class Post {
       authorName: authorName,
       authorAvatarUrl: authorAvatarUrl,
       authorType: map['author_profile_type'] as String?,
+      authorCity: authorCity,
+      authorZipcode: authorZipcode,
 
       postType: map['post_type'] as String?,
       marketCategory: map['market_category'] as String?,

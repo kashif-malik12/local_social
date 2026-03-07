@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/market_categories.dart';
 import '../models/post_model.dart';
+import '../widgets/global_app_bar.dart';
 
 class MarketplaceProductDetailScreen extends StatefulWidget {
   final String postId;
@@ -36,6 +38,27 @@ class _MarketplaceProductDetailScreenState
     }
   }
 
+  double? _priceFromContent(String raw) {
+    final patterns = [
+      RegExp(r'price\s*:\s*(\d+(?:[.,]\d{1,2})?)', caseSensitive: false),
+      RegExp(r'price\s*:\s*(?:eur|euro|€|\$)\s*(\d+(?:[.,]\d{1,2})?)',
+          caseSensitive: false),
+      RegExp(r'(?:eur|euro|€)\s*(\d+(?:[.,]\d{1,2})?)', caseSensitive: false),
+      RegExp(r'(\d+(?:[.,]\d{1,2})?)\s*eur', caseSensitive: false),
+    ];
+
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(raw);
+      if (match != null) {
+        final value = (match.group(1) ?? '').replaceAll(',', '.');
+        final parsed = double.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+    }
+
+    return null;
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -45,7 +68,7 @@ class _MarketplaceProductDetailScreenState
     try {
       final row = await Supabase.instance.client
           .from('posts')
-          .select('*, profiles(full_name, avatar_url)')
+          .select('*, profiles(full_name, avatar_url, city, zipcode)')
           .eq('id', widget.postId)
           .eq('post_type', 'market')
           .maybeSingle();
@@ -70,9 +93,17 @@ class _MarketplaceProductDetailScreenState
   @override
   Widget build(BuildContext context) {
     final p = _post;
+    final myId = Supabase.instance.client.auth.currentUser?.id;
+    final canSendOffer = p != null && myId != null && p.userId != myId;
+    final effectivePrice =
+        p == null ? null : (p.marketPrice ?? _priceFromContent(p.content));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Product details')),
+      appBar: const GlobalAppBar(
+        title: 'Product details',
+        showBackIfPossible: true,
+        homeRoute: '/feed',
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -113,8 +144,8 @@ class _MarketplaceProductDetailScreenState
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          p.marketPrice != null
-                              ? '€${p.marketPrice!.toStringAsFixed(2)}'
+                          effectivePrice != null
+                              ? 'EUR ${effectivePrice.toStringAsFixed(2)}'
                               : (p.marketIntent == 'buying'
                                   ? 'Looking to buy'
                                   : 'Price on request'),
@@ -124,7 +155,14 @@ class _MarketplaceProductDetailScreenState
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text('Seller: ${p.authorName ?? 'Unknown'}'),
+                        if (((p.authorCity ?? '').trim().isNotEmpty) ||
+                            ((p.authorZipcode ?? '').trim().isNotEmpty))
+                          Text(
+                            'Location: ${((p.authorCity ?? '').trim().isNotEmpty ? p.authorCity!.trim() : p.authorZipcode!.trim())}',
+                          ),
+                        if (((p.authorCity ?? '').trim().isNotEmpty) ||
+                            ((p.authorZipcode ?? '').trim().isNotEmpty))
+                          const SizedBox(height: 8),
                         if ((p.marketCategory ?? '').isNotEmpty)
                           Text(
                             'Category: ${marketCategoryLabel(p.marketCategory!)}',
@@ -138,6 +176,19 @@ class _MarketplaceProductDetailScreenState
                         ),
                         const SizedBox(height: 8),
                         Text(p.content),
+                        if (canSendOffer) ...[
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => context.push(
+                                '/offer-chat/post/${p.id}/user/${p.userId}',
+                              ),
+                              icon: const Icon(Icons.local_offer_outlined),
+                              label: const Text('Send Offer'),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
     );

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/food_categories.dart';
 import '../models/post_model.dart';
+import '../widgets/global_app_bar.dart';
 
 class FoodAdDetailScreen extends StatefulWidget {
   final String postId;
@@ -32,7 +33,7 @@ class _FoodAdDetailScreenState extends State<FoodAdDetailScreen> {
     try {
       final row = await Supabase.instance.client
           .from('posts')
-          .select('*, profiles(full_name, avatar_url)')
+          .select('*, profiles(full_name, avatar_url, city, zipcode)')
           .eq('id', widget.postId)
           .inFilter('post_type', ['food_ad', 'food'])
           .maybeSingle();
@@ -53,7 +54,11 @@ class _FoodAdDetailScreenState extends State<FoodAdDetailScreen> {
   Widget build(BuildContext context) {
     final p = _post;
     return Scaffold(
-      appBar: AppBar(title: const Text('Food details')),
+      appBar: const GlobalAppBar(
+        title: 'Food details',
+        showBackIfPossible: true,
+        homeRoute: '/feed',
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -89,6 +94,11 @@ class _FoodAdDetailScreenState extends State<FoodAdDetailScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text('Restaurant: ${p.authorName ?? 'Unknown'}'),
+                        if (((p.authorCity ?? '').trim().isNotEmpty) ||
+                            ((p.authorZipcode ?? '').trim().isNotEmpty))
+                          Text(
+                            'Location: ${((p.authorCity ?? '').trim().isNotEmpty ? p.authorCity!.trim() : p.authorZipcode!.trim())}',
+                          ),
                         if ((p.marketCategory ?? '').isNotEmpty)
                           Text('Category: ${foodCategoryLabel(p.marketCategory!)}'),
                         const SizedBox(height: 16),

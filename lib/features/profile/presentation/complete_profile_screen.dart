@@ -27,6 +27,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _zipCtrl = TextEditingController();
   double? _lat;
   double? _lng;
+  String? _city;
 
   String _accountType = 'person'; // person | business | org
   String? _orgKind; // government | nonprofit (only when org)
@@ -63,6 +64,62 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     super.dispose();
   }
 
+  Future<String?> _resolveCityFromZipcode(String zip) async {
+    if (!RegExp(r'^\d{5}$').hasMatch(zip)) return null;
+
+    if (kIsWeb) {
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&country=France&postalcode=$zip&limit=1',
+      );
+
+      final res = await http.get(uri, headers: {
+        'User-Agent': 'local-social-app/1.0',
+      });
+
+      if (res.statusCode != 200) return null;
+
+      final data = jsonDecode(res.body);
+      if (data is! List || data.isEmpty) return null;
+
+      return (data[0]['address']?['city'] ??
+              data[0]['address']?['town'] ??
+              data[0]['address']?['village'] ??
+              data[0]['display_name']?.toString().split(',').first)
+          ?.toString()
+          .trim();
+    }
+
+    final results = await locationFromAddress('$zip, France');
+    if (results.isEmpty) return null;
+
+    final placemarks = await placemarkFromCoordinates(
+      results.first.latitude,
+      results.first.longitude,
+    );
+    if (placemarks.isEmpty) return null;
+
+    return (placemarks.first.locality?.trim().isNotEmpty == true
+            ? placemarks.first.locality
+            : placemarks.first.subAdministrativeArea)
+        ?.trim();
+  }
+
+  Future<void> _backfillCityIfMissing({
+    required String userId,
+    required String zip,
+  }) async {
+    final resolved = await _resolveCityFromZipcode(zip);
+    if (resolved == null || resolved.isEmpty) return;
+
+    await Supabase.instance.client
+        .from('profiles')
+        .update({'city': resolved})
+        .eq('id', userId);
+
+    if (!mounted) return;
+    setState(() => _city = resolved);
+  }
+
   Future<void> _loadProfile() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
@@ -73,7 +130,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         data = await Supabase.instance.client
             .from('profiles')
             .select(
-             'full_name, bio, zipcode, latitude, longitude, profile_type, account_type, org_kind, radius_km, avatar_url, is_restaurant, restaurant_type, business_type',
+             'full_name, bio, zipcode, city, latitude, longitude, profile_type, account_type, org_kind, radius_km, avatar_url, is_restaurant, restaurant_type, business_type',
             )
             .eq('id', user.id)
             .maybeSingle();
@@ -81,7 +138,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         data = await Supabase.instance.client
             .from('profiles')
             .select(
-              'full_name, bio, zipcode, latitude, longitude, profile_type, account_type, org_kind, radius_km, avatar_url',
+              'full_name, bio, zipcode, city, latitude, longitude, profile_type, account_type, org_kind, radius_km, avatar_url',
             )
             .eq('id', user.id)
             .maybeSingle();
@@ -93,6 +150,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         _name.text = (data?['full_name'] as String?) ?? '';
         _bio.text = (data?['bio'] as String?) ?? '';
         _zipCtrl.text = (data?['zipcode'] as String?) ?? '';
+        _city = data?['city'] as String?;
 
         _avatarUrl = (data?['avatar_url'] as String?);
 
@@ -109,6 +167,12 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         _businessType = data?['business_type'] as String?;
         _radiusKm = (data?['radius_km'] as int?) ?? 5;
       });
+
+      final zip = (data?['zipcode'] as String?)?.trim() ?? '';
+      final city = (data?['city'] as String?)?.trim() ?? '';
+      if (city.isEmpty && zip.isNotEmpty) {
+        await _backfillCityIfMissing(userId: user.id, zip: zip);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = 'Failed to load profile: $e');
@@ -173,10 +237,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
       double? lat;
       double? lng;
+      String? city;
 
       if (kIsWeb) {
         final uri = Uri.parse(
-          'https://nominatim.openstreetmap.org/search?format=json&country=France&postalcode=$zip&limit=1',
+          'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&country=France&postalcode=$zip&limit=1',
         );
 
         final res = await http.get(uri, headers: {
@@ -194,6 +259,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
         lat = double.tryParse(data[0]['lat']?.toString() ?? '');
         lng = double.tryParse(data[0]['lon']?.toString() ?? '');
+        city = await _resolveCityFromZipcode(zip);
 
         if (lat == null || lng == null) {
           throw 'Geocoding returned invalid coordinates. Try another zip.';
@@ -205,6 +271,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         }
         lat = results.first.latitude;
         lng = results.first.longitude;
+        city = await _resolveCityFromZipcode(zip);
       }
 
       if (!mounted) return;
@@ -212,10 +279,19 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       setState(() {
         _lat = lat;
         _lng = lng;
+        if (city != null && city.trim().isNotEmpty) {
+          _city = city.trim();
+        }
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Location set for $zip')),
+        SnackBar(
+          content: Text(
+            _city != null && _city!.isNotEmpty
+                ? 'Location set for $zip • $_city'
+                : 'Location set for $zip',
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -274,6 +350,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         'business_type': (_accountType == 'business' && !_isRestaurant) ? _businessType : null,
         
         'radius_km': _radiusKm,
+        'city': _city,
 
         // ✅ keep avatar
         'avatar_url': _avatarUrl,
@@ -528,7 +605,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             const SizedBox(height: 8),
             if (_lat != null && _lng != null)
               Text(
-                'Lat/Lng: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}',
+                _city != null && _city!.isNotEmpty
+                    ? 'City: $_city • Lat/Lng: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}'
+                    : 'Lat/Lng: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}',
               ),
 
             const SizedBox(height: 12),

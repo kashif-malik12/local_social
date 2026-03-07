@@ -200,6 +200,30 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return;
     }
 
+    if ((n.type == 'offer_message' ||
+            n.type == 'offer_sent' ||
+            n.type == 'offer_accepted' ||
+            n.type == 'offer_rejected') &&
+        n.postId != null) {
+      final post = await _db
+          .from('posts')
+          .select('post_type')
+          .eq('id', n.postId!)
+          .maybeSingle();
+
+      final postType = (post?['post_type'] as String?) ?? '';
+      if (!mounted) return;
+
+      if (postType == 'market') {
+        context.push('/marketplace/product/${n.postId}');
+        return;
+      }
+      if (postType == 'service_offer' || postType == 'service_request') {
+        context.push('/gigs/service/${n.postId}');
+        return;
+      }
+    }
+
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Nothing to open')),
@@ -296,6 +320,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return '$name liked your post';
       case 'comment':
         return '$name commented on your post';
+      case 'offer_message':
+        return '$name sent a message about your listing';
+      case 'offer_sent':
+        return '$name sent an offer on your listing';
+      case 'offer_accepted':
+        return '$name accepted the offer';
+      case 'offer_rejected':
+        return '$name rejected the offer';
       default:
         return '$name sent an update';
     }

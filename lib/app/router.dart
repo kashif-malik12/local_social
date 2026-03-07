@@ -38,6 +38,8 @@ import '../screens/businesses_screen.dart';
 import '../features/chat/presentation/chat_list_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
 import '../features/chat/presentation/chat_start_screen.dart';
+import '../features/chat/presentation/offer_chat_screen.dart';
+import '../features/chat/presentation/offer_chat_start_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final auth = Supabase.instance.client.auth;
@@ -238,6 +240,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final userId = state.pathParameters['userId']!;
           return ChatStartScreen(otherUserId: userId);
+        },
+      ),
+
+      GoRoute(
+        path: '/offer-chat/:conversationId',
+        builder: (context, state) {
+          final id = state.pathParameters['conversationId']!;
+          return OfferChatScreen(conversationId: id);
+        },
+      ),
+
+      GoRoute(
+        path: '/offer-chat/post/:postId/user/:userId',
+        builder: (context, state) {
+          final postId = state.pathParameters['postId']!;
+          final userId = state.pathParameters['userId']!;
+          return OfferChatStartScreen(
+            postId: postId,
+            otherUserId: userId,
+          );
         },
       ),
 

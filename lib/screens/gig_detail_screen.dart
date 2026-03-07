@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/service_categories.dart';
 import '../models/post_model.dart';
+import '../widgets/global_app_bar.dart';
 
 class GigDetailScreen extends StatefulWidget {
   final String postId;
@@ -29,6 +31,28 @@ class _GigDetailScreenState extends State<GigDetailScreen> {
     return '';
   }
 
+  double? _priceFromContent(String raw) {
+    final patterns = [
+      RegExp(r'(?:price|budget|rate)\s*:\s*(\d+(?:[.,]\d{1,2})?)',
+          caseSensitive: false),
+      RegExp(r'(?:price|budget|rate)\s*:\s*(?:eur|euro|€|\$)\s*(\d+(?:[.,]\d{1,2})?)',
+          caseSensitive: false),
+      RegExp(r'(?:eur|euro|€)\s*(\d+(?:[.,]\d{1,2})?)', caseSensitive: false),
+      RegExp(r'(\d+(?:[.,]\d{1,2})?)\s*eur', caseSensitive: false),
+    ];
+
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(raw);
+      if (match != null) {
+        final value = (match.group(match.groupCount) ?? '').replaceAll(',', '.');
+        final parsed = double.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+    }
+
+    return null;
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -38,7 +62,7 @@ class _GigDetailScreenState extends State<GigDetailScreen> {
     try {
       final row = await Supabase.instance.client
           .from('posts')
-          .select('*, profiles(full_name, avatar_url)')
+          .select('*, profiles(full_name, avatar_url, city, zipcode)')
           .eq('id', widget.postId)
           .inFilter('post_type', ['service_offer', 'service_request'])
           .maybeSingle();
@@ -61,9 +85,17 @@ class _GigDetailScreenState extends State<GigDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final p = _post;
+    final myId = Supabase.instance.client.auth.currentUser?.id;
+    final canSendOffer = p != null && myId != null && p.userId != myId;
+    final effectivePrice =
+        p == null ? null : (p.marketPrice ?? _priceFromContent(p.content));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Service details')),
+      appBar: const GlobalAppBar(
+        title: 'Service details',
+        showBackIfPossible: true,
+        homeRoute: '/feed',
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -104,8 +136,8 @@ class _GigDetailScreenState extends State<GigDetailScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          p.marketPrice != null
-                              ? '€${p.marketPrice!.toStringAsFixed(2)}'
+                          effectivePrice != null
+                              ? 'EUR ${effectivePrice.toStringAsFixed(2)}'
                               : (p.postType == 'service_request'
                                   ? 'Budget open'
                                   : 'Rate on request'),
@@ -115,7 +147,14 @@ class _GigDetailScreenState extends State<GigDetailScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text('By: ${p.authorName ?? 'Unknown'}'),
+                        if (((p.authorCity ?? '').trim().isNotEmpty) ||
+                            ((p.authorZipcode ?? '').trim().isNotEmpty))
+                          Text(
+                            'Location: ${((p.authorCity ?? '').trim().isNotEmpty ? p.authorCity!.trim() : p.authorZipcode!.trim())}',
+                          ),
+                        if (((p.authorCity ?? '').trim().isNotEmpty) ||
+                            ((p.authorZipcode ?? '').trim().isNotEmpty))
+                          const SizedBox(height: 8),
                         if ((p.marketCategory ?? '').isNotEmpty)
                           Text(
                             'Category: ${serviceCategoryLabel(p.marketCategory!)}',
@@ -129,6 +168,19 @@ class _GigDetailScreenState extends State<GigDetailScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(p.content),
+                        if (canSendOffer) ...[
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => context.push(
+                                '/offer-chat/post/${p.id}/user/${p.userId}',
+                              ),
+                              icon: const Icon(Icons.local_offer_outlined),
+                              label: const Text('Send Offer'),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
     );

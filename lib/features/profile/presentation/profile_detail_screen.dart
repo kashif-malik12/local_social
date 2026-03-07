@@ -655,6 +655,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     final name = (_profile?['full_name'] ?? 'Profile').toString();
     final bio = (_profile?['bio'] ?? '').toString();
     final type = (_profile?['profile_type'] ?? _profile?['account_type'] ?? '').toString();
+    final city = (_profile?['city'] ?? '').toString();
+    final zipcode = (_profile?['zipcode'] ?? '').toString();
+    final location = city.isNotEmpty ? city : zipcode;
 
     final canOpenLists = _isMe;
 
@@ -690,6 +693,10 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             if (type.isNotEmpty) ...[
               const SizedBox(height: 6),
               Text('Type: $type', style: const TextStyle(fontSize: 12)),
+            ],
+            if (location.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text('Location: $location', style: const TextStyle(fontSize: 12)),
             ],
             if (bio.isNotEmpty) ...[
               const SizedBox(height: 10),

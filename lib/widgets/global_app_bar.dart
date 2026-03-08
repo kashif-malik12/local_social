@@ -4,9 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/chat_singletons.dart';
+import '../features/moderation/providers/admin_access_provider.dart';
 import '../features/notifications/providers/notification_unread_provider.dart';
 
-class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
+class GlobalAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final String title;
   final Widget? notifBell;
   final bool showBackIfPossible;
@@ -52,28 +53,39 @@ class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
     }
   }
 
-  PopupMenuButton<String> _buildMoreMenu(BuildContext context, ThemeData theme) {
+  PopupMenuButton<String> _buildMoreMenu(
+    BuildContext context,
+    ThemeData theme,
+    bool isAdmin,
+  ) {
     return PopupMenuButton<String>(
       tooltip: 'More',
       onSelected: (value) {
         if (value == 'profile') {
           context.push(myProfileRoute);
+        } else if (value == 'admin') {
+          context.push('/adminlive');
         } else if (value == 'logout') {
           _logout(context);
         } else if (value == 'home') {
           context.go(homeRoute);
         }
       },
-      itemBuilder: (_) => const [
-        PopupMenuItem<String>(
+      itemBuilder: (_) => [
+        const PopupMenuItem<String>(
           value: 'home',
           child: Text('Home'),
         ),
-        PopupMenuItem<String>(
+        const PopupMenuItem<String>(
           value: 'profile',
           child: Text('My profile'),
         ),
-        PopupMenuItem<String>(
+        if (isAdmin)
+          const PopupMenuItem<String>(
+            value: 'admin',
+            child: Text('Admin portal'),
+          ),
+        const PopupMenuItem<String>(
           value: 'logout',
           child: Text('Logout'),
         ),
@@ -93,11 +105,12 @@ class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final canPop = GoRouter.of(context).canPop();
     final showBack = showBackIfPossible && canPop;
     final theme = Theme.of(context);
     final showNavActions = showDefaultActions && MediaQuery.of(context).size.width >= 1100;
+    final isAdmin = ref.watch(adminAccessProvider).valueOrNull == true;
 
     return AppBar(
       scrolledUnderElevation: 0,
@@ -221,7 +234,7 @@ class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
                 );
               },
             ),
-          _buildMoreMenu(context, theme),
+          _buildMoreMenu(context, theme, isAdmin),
         ],
       ],
     );

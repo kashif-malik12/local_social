@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../widgets/global_bottom_nav.dart';
@@ -36,7 +37,10 @@ class _OfferChatStartScreenState extends State<OfferChatStartScreen> {
         otherUserId: widget.otherUserId,
       );
       if (!mounted) return;
-      context.go('/offer-chat/$convId');
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.replace('/offer-chat/$convId');
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());

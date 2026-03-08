@@ -6,8 +6,8 @@ import '../models/post_model.dart';
 import '../services/post_service.dart';
 import '../services/reaction_service.dart';
 import '../widgets/global_bottom_nav.dart';
+import '../widgets/post_media_view.dart';
 import '../widgets/tagged_content.dart';
-import '../widgets/youtube_preview.dart';
 import '../widgets/report_post_sheet.dart'; // ✅ NEW
 
 class PostDetailScreen extends StatefulWidget {
@@ -170,22 +170,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             const SizedBox(height: 12),
                             TaggedContent(content: _post!.content),
 
-                            // ✅ YouTube preview
-                            if (_post!.videoUrl != null &&
-                                _post!.videoUrl!.isNotEmpty) ...[
-                              YoutubePreview(videoUrl: _post!.videoUrl!),
-                            ],
-
-                            // ✅ Image
-                            if (_post!.imageUrl != null &&
-                                _post!.imageUrl!.isNotEmpty) ...[
+                            if ((_post!.imageUrl ?? '').isNotEmpty ||
+                                (_post!.secondImageUrl ?? '').isNotEmpty ||
+                                (_post!.videoUrl ?? '').isNotEmpty) ...[
                               const SizedBox(height: 12),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  _post!.imageUrl!,
-                                  fit: BoxFit.cover,
-                                ),
+                              PostMediaView(
+                                imageUrl: _post!.imageUrl,
+                                secondImageUrl: _post!.secondImageUrl,
+                                videoUrl: _post!.videoUrl,
                               ),
                             ],
 

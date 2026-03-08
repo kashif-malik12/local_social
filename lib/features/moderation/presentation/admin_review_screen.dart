@@ -433,9 +433,12 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AdminLive'),
+        title: const Text('Admin Portal'),
         bottom: TabBar(
           controller: _tab,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          labelPadding: const EdgeInsets.symmetric(horizontal: 16),
           tabs: const [
             Tab(text: 'Overview'),
             Tab(text: 'Moderation'),
@@ -603,7 +606,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
                   title: 'Review post reports',
                   subtitle: 'Check reported posts, dismiss noise, or remove harmful posts.',
                   icon: Icons.flag_outlined,
-                  onTap: () => _tab.animateTo(1),
+                  onTap: () => _tab.animateTo(2),
                 ),
               ),
               const SizedBox(width: 12),
@@ -612,7 +615,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
                   title: 'Review user reports',
                   subtitle: 'Handle abusive accounts and apply bans or unbans.',
                   icon: Icons.person_off_outlined,
-                  onTap: () => _tab.animateTo(2),
+                  onTap: () => _tab.animateTo(3),
                 ),
               ),
             ],
@@ -711,7 +714,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
                           ),
                           const SizedBox(height: 24),
                           const Text(
-                            'AdminLive',
+                            'Admin Portal',
                             style: TextStyle(
                               fontSize: 42,
                               height: 1,
@@ -867,7 +870,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
   Widget _buildAccessDeniedScreen() {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AdminLive'),
+        title: const Text('Admin Portal'),
         actions: [
           IconButton(
             onPressed: () => context.go('/feed'),

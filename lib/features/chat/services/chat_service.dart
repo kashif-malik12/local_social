@@ -56,4 +56,10 @@ class ChatService {
     final res = await _db.rpc('get_unread_total');
     return (res as num).toInt();
   }
+
+  Future<void> deleteConversation(String conversationId) async {
+    await _db.rpc('delete_direct_conversation', params: {
+      'p_conversation_id': conversationId,
+    });
+  }
 }

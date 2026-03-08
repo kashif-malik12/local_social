@@ -13,6 +13,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -29,6 +30,8 @@ import '../services/reaction_service.dart';
 import '../widgets/youtube_preview.dart';
 import '../widgets/global_bottom_nav.dart';
 import '../widgets/global_app_bar.dart';
+import '../widgets/mobile_video_feed.dart';
+import '../widgets/post_media_view.dart';
 import '../widgets/tagged_content.dart';
 import '../widgets/report_post_sheet.dart'; // ✅ NEW
 
@@ -92,6 +95,8 @@ class _FeedScreenState extends State<FeedScreen> {
   int _pendingOfferConversations = 0;
   int _unreadOfferMessages = 0;
   List<Map<String, dynamic>> _topPosts = [];
+  final PageController _mobileFeedPager = PageController();
+  int _mobileFeedPage = 0;
 
   @override
   void initState() {
@@ -106,6 +111,7 @@ class _FeedScreenState extends State<FeedScreen> {
   void dispose() {
     _scroll.removeListener(_onScroll);
     _scroll.dispose();
+    _mobileFeedPager.dispose();
 
     _notifDebounce?.cancel();
     final ch = _notifChannel;
@@ -737,40 +743,53 @@ class _FeedScreenState extends State<FeedScreen> {
     final postService = PostService(Supabase.instance.client);
 
     if (isMarketplacePost || isGigPost) {
-      if (_canSharePost(p)) {
-        return Row(
-          children: [
-            TextButton.icon(
-              onPressed: () async {
-                try {
-                  await postService.sharePost(
-                    originalPostId: p.id,
-                    originalAuthorId: p.userId,
-                    originalVisibility: p.visibility,
-                    originalLatitude: p.latitude,
-                    originalLongitude: p.longitude,
-                    originalLocationName: p.locationName,
-                  );
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Post shared')),
-                  );
-                  await _load(reset: true);
-                } catch (e) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Share error: $e')),
-                  );
-                }
-              },
-              icon: const Icon(Icons.share_outlined),
-              label: const Text('Share'),
-            ),
-          ],
-        );
-      }
-
-      return const SizedBox.shrink();
+      return FutureBuilder<int>(
+        future: react.commentsCount(p.id),
+        builder: (context, snap) {
+          final qaCount = snap.hasData ? snap.data! : 0;
+          final qaRoute = isMarketplacePost
+              ? '/marketplace/product/${p.id}?tab=qa'
+              : '/gigs/service/${p.id}?tab=qa';
+          return Row(
+            children: [
+              TextButton.icon(
+                onPressed: () => context.push(qaRoute),
+                icon: const Icon(Icons.forum_outlined),
+                label: Text('Q&A $qaCount'),
+              ),
+              if (_canSharePost(p)) ...[
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () async {
+                    try {
+                      await postService.sharePost(
+                        originalPostId: p.id,
+                        originalAuthorId: p.userId,
+                        originalVisibility: p.visibility,
+                        originalLatitude: p.latitude,
+                        originalLongitude: p.longitude,
+                        originalLocationName: p.locationName,
+                      );
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Post shared')),
+                      );
+                      await _load(reset: true);
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Share error: $e')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.share_outlined),
+                  label: const Text('Share'),
+                ),
+              ],
+            ],
+          );
+        },
+      );
     }
 
     return FutureBuilder<List<dynamic>>(
@@ -2524,32 +2543,22 @@ class _FeedScreenState extends State<FeedScreen> {
                   ],
                   if ((p.sharedPostId ?? '').isNotEmpty) ...[
                     _buildSharedPostSection(p),
-                  ] else if (displayPost.imageUrl != null && displayPost.imageUrl!.isNotEmpty) ...[
+                  ] else if ((displayPost.imageUrl ?? '').isNotEmpty ||
+                      (displayPost.secondImageUrl ?? '').isNotEmpty ||
+                      (displayPost.videoUrl ?? '').isNotEmpty) ...[
                     const SizedBox(height: 10),
-                    GestureDetector(
-                      onTap: () => _openImagePreview(displayPost.imageUrl!),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: double.infinity,
-                          constraints: const BoxConstraints(maxHeight: 360),
-                          color: Colors.black.withOpacity(0.04),
-                          child: Image.network(
-                            displayPost.imageUrl!,
-                            width: double.infinity,
-                            fit: BoxFit.contain,
-                            alignment: Alignment.center,
-                          ),
-                        ),
-                      ),
+                    PostMediaView(
+                      imageUrl: displayPost.imageUrl,
+                      secondImageUrl: displayPost.secondImageUrl,
+                      videoUrl: displayPost.videoUrl,
+                      maxHeight: 360,
+                      singleImagePreview: _isMarketplacePost(displayPost) ||
+                          _isGigPost(displayPost) ||
+                          _isFoodPost(displayPost),
+                      onImageTap: _openImagePreview,
                     ),
                   ],
-                  if ((p.sharedPostId ?? '').isEmpty &&
-                      displayPost.videoUrl != null &&
-                      displayPost.videoUrl!.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    YoutubePreview(videoUrl: displayPost.videoUrl!),
-                  ],
+                  if ((p.sharedPostId ?? '').isEmpty) _buildQaPreview(displayPost),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -2742,6 +2751,94 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
+  Widget _buildQaPreview(Post post) {
+    final type = (post.postType ?? '').trim();
+    final isMarketplacePost = type == 'market';
+    final isGigPost = type == 'service_offer' || type == 'service_request';
+    if (!isMarketplacePost && !isGigPost) {
+      return const SizedBox.shrink();
+    }
+
+    final react = ReactionService(Supabase.instance.client);
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: react.fetchComments(post.id),
+      builder: (context, snapshot) {
+        final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+        if (rows.isEmpty) return const SizedBox.shrink();
+
+        final roots = rows.where((row) => row['parent_comment_id'] == null).take(2).toList();
+        if (roots.isEmpty) return const SizedBox.shrink();
+
+        return Container(
+          margin: const EdgeInsets.only(top: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.72),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE6DDCE)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Q&A',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 10),
+              ...roots.map((question) {
+                final questionId = question['id']?.toString() ?? '';
+                final answers = rows
+                    .where((row) => row['parent_comment_id']?.toString() == questionId)
+                    .take(1)
+                    .toList();
+                final qProfile = question['profiles'];
+                final qName = qProfile is Map
+                    ? (qProfile['full_name']?.toString().trim().isNotEmpty == true
+                        ? qProfile['full_name'].toString().trim()
+                        : 'User')
+                    : 'User';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        qName,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 4),
+                      TaggedContent(content: question['content']?.toString() ?? ''),
+                      if (answers.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Owner/Author',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF7A5C2E),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              TaggedContent(content: answers.first['content']?.toString() ?? ''),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   String _shareScopeLabel(String scope) {
     switch (scope) {
       case 'followers':
@@ -2825,29 +2922,20 @@ class _FeedScreenState extends State<FeedScreen> {
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ],
-          if (sharedPost.imageUrl != null && sharedPost.imageUrl!.isNotEmpty) ...[
+          if ((sharedPost.imageUrl ?? '').isNotEmpty ||
+              (sharedPost.secondImageUrl ?? '').isNotEmpty ||
+              (sharedPost.videoUrl ?? '').isNotEmpty) ...[
             const SizedBox(height: 10),
-            GestureDetector(
-              onTap: () => _openImagePreview(sharedPost.imageUrl!),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: double.infinity,
-                  constraints: const BoxConstraints(maxHeight: 280),
-                  color: Colors.black.withOpacity(0.04),
-                  child: Image.network(
-                    sharedPost.imageUrl!,
-                    width: double.infinity,
-                    fit: BoxFit.contain,
-                    alignment: Alignment.center,
-                  ),
-                ),
-              ),
+            PostMediaView(
+              imageUrl: sharedPost.imageUrl,
+              secondImageUrl: sharedPost.secondImageUrl,
+              videoUrl: sharedPost.videoUrl,
+              maxHeight: 280,
+              singleImagePreview: _isMarketplacePost(sharedPost) ||
+                  _isGigPost(sharedPost) ||
+                  _isFoodPost(sharedPost),
+              onImageTap: _openImagePreview,
             ),
-          ],
-          if (sharedPost.videoUrl != null && sharedPost.videoUrl!.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            YoutubePreview(videoUrl: sharedPost.videoUrl!),
           ],
           const SizedBox(height: 8),
           Wrap(
@@ -2968,6 +3056,67 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
+  bool _useSplitMobileFeeds(BuildContext context) =>
+      !kIsWeb && MediaQuery.of(context).size.width < 1100;
+
+  Widget _buildRootFeedBody() {
+    if (!_useSplitMobileFeeds(context)) {
+      return _buildResponsiveFeedBody();
+    }
+
+    return Stack(
+      children: [
+        PageView(
+          controller: _mobileFeedPager,
+          onPageChanged: (index) {
+            if (!mounted) return;
+            setState(() => _mobileFeedPage = index);
+          },
+          children: [
+            _buildResponsiveFeedBody(),
+            const MobileVideoFeed(),
+          ],
+        ),
+        Positioned(
+          top: 10,
+          left: 0,
+          right: 0,
+          child: IgnorePointer(
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.28),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildMobileFeedDot(active: _mobileFeedPage == 0),
+                    const SizedBox(width: 6),
+                    _buildMobileFeedDot(active: _mobileFeedPage == 1),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileFeedDot({required bool active}) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: active ? 18 : 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFF0F766E) : Colors.white.withOpacity(0.72),
+        borderRadius: BorderRadius.circular(999),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -2978,7 +3127,7 @@ class _FeedScreenState extends State<FeedScreen> {
         homeRoute: '/feed',
         onBeforeLogout: _onBeforeLogout,
       ),
-      body: _buildResponsiveFeedBody(),
+      body: _buildRootFeedBody(),
       bottomNavigationBar: GlobalBottomNav(
         onOpenFilters: _openFilterSheet,
         onBeforeLogout: _onBeforeLogout,

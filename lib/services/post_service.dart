@@ -60,6 +60,43 @@ class PostService {
     return _db.storage.from('post-images').getPublicUrl(path);
   }
 
+  Future<String> uploadPostVideo({
+    required XFile video,
+    required String userId,
+  }) async {
+    final ext = video.name.split('.').last.toLowerCase();
+    final safeExt = ext.isEmpty ? 'mp4' : ext;
+
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}.$safeExt';
+    final path = '$userId/$fileName';
+
+    if (kIsWeb) {
+      final Uint8List bytes = await video.readAsBytes();
+
+      await _db.storage.from('post-images').uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              upsert: false,
+              contentType: _videoContentTypeFromExt(safeExt),
+            ),
+          );
+    } else {
+      final file = File(video.path);
+
+      await _db.storage.from('post-images').upload(
+            path,
+            file,
+            fileOptions: FileOptions(
+              upsert: false,
+              contentType: _videoContentTypeFromExt(safeExt),
+            ),
+          );
+    }
+
+    return _db.storage.from('post-images').getPublicUrl(path);
+  }
+
   String _contentTypeFromExt(String ext) {
     switch (ext) {
       case 'png':
@@ -82,6 +119,7 @@ class PostService {
     required double longitude,
     String? locationName,
     String? imageUrl,
+    String? secondImageUrl,
     String? videoUrl,
     required String postType,
     String? marketCategory,
@@ -114,6 +152,7 @@ class PostService {
       'longitude': longitude,
       'location_name': locationName,
       'image_url': imageUrl,
+      'second_image_url': secondImageUrl,
       'video_url': videoUrl,
       'post_type': postType,
       'author_profile_type': authorType,
@@ -147,24 +186,46 @@ class PostService {
       }
 
       // Backward-compatible fallback for deployments where optional columns
-      // (video_url / post_type / author_profile_type / market_category / market_intent) are not migrated yet.
+      // (second_image_url / video_url / post_type / author_profile_type / market_category / market_intent) are not migrated yet.
       if (!_isMissingColumnError(e)) rethrow;
 
-      final inserted = await _db.from('posts').insert({
-        'user_id': user.id,
-        'content': content,
-        'visibility': normalizedVisibility,
-        'latitude': latitude,
-        'longitude': longitude,
-        'location_name': locationName,
-        'image_url': imageUrl,
-      }).select('id').single();
+      dynamic inserted;
+      try {
+        final retryPayload = Map<String, dynamic>.from(payload)..remove('second_image_url');
+        inserted = await _db.from('posts').insert(retryPayload).select('id').single();
+      } on PostgrestException catch (retryError) {
+        if (!_isMissingColumnError(retryError)) rethrow;
+        inserted = await _db.from('posts').insert({
+          'user_id': user.id,
+          'content': content,
+          'visibility': normalizedVisibility,
+          'latitude': latitude,
+          'longitude': longitude,
+          'location_name': locationName,
+          'image_url': imageUrl,
+        }).select('id').single();
+      }
+
       final postId = (inserted['id'] ?? '').toString();
       if (postId.isNotEmpty) {
         await _notifyTaggedUsers(postId: postId, taggedUserIds: taggedUserIds);
         return postId;
       }
       return null;
+    }
+  }
+
+  String _videoContentTypeFromExt(String ext) {
+    switch (ext) {
+      case 'mov':
+        return 'video/quicktime';
+      case 'webm':
+        return 'video/webm';
+      case 'm4v':
+        return 'video/x-m4v';
+      case 'mp4':
+      default:
+        return 'video/mp4';
     }
   }
 
@@ -340,6 +401,7 @@ class PostService {
 
     return msg.contains('column') &&
         (msg.contains('video_url') ||
+            msg.contains('second_image_url') ||
             msg.contains('post_type') ||
             msg.contains('author_profile_type') ||
             msg.contains('market_category') ||
@@ -358,6 +420,7 @@ class PostService {
     String postType = 'all',
     String authorType = 'all',
     String scope = 'all', // 'all' or 'following'
+    int? radiusKmOverride,
     DateTime? beforeCreatedAt,
     String? beforeId,
   }) async {
@@ -373,7 +436,7 @@ class PostService {
 
     final lat = (me?['latitude'] as num?)?.toDouble();
     final lng = (me?['longitude'] as num?)?.toDouble();
-    final radiusKm = (me?['radius_km'] as int?) ?? 5;
+    final radiusKm = radiusKmOverride ?? (me?['radius_km'] as int?) ?? 5;
 
     // 2) Fallback if location isn't set
     // Also force direct query for food filter to support both legacy 'food'

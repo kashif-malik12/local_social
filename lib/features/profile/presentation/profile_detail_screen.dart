@@ -10,9 +10,9 @@ import '../../../models/portfolio_item.dart';
 import '../../../services/reaction_service.dart';
 import '../../../services/follow_service.dart';
 import '../../../services/portfolio_service.dart';
-import '../../../widgets/youtube_preview.dart';
 import '../../../widgets/global_app_bar.dart';
 import '../../../widgets/global_bottom_nav.dart';
+import '../../../widgets/post_media_view.dart';
 import '../../../widgets/tagged_content.dart';
 import '../../../widgets/report_post_sheet.dart'; // ✅ NEW
 import '../../../widgets/report_user_sheet.dart'; // ✅ NEW
@@ -689,14 +689,14 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                     ),
                     const SizedBox(height: 6),
                     TaggedContent(content: p.content),
-                    if (p.videoUrl != null && p.videoUrl!.isNotEmpty) ...[
-                      YoutubePreview(videoUrl: p.videoUrl!),
-                    ],
-                    if (p.imageUrl != null) ...[
+                    if ((p.imageUrl ?? '').isNotEmpty ||
+                        (p.secondImageUrl ?? '').isNotEmpty ||
+                        (p.videoUrl ?? '').isNotEmpty) ...[
                       const SizedBox(height: 10),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(p.imageUrl!, fit: BoxFit.cover),
+                      PostMediaView(
+                        imageUrl: p.imageUrl,
+                        secondImageUrl: p.secondImageUrl,
+                        videoUrl: p.videoUrl,
                       ),
                     ],
                     const SizedBox(height: 8),
@@ -740,6 +740,17 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                           ),
                         ],
                       ),
+                    if (_isMe && (p.postType == 'food_ad' || p.postType == 'food')) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: FilledButton.tonalIcon(
+                          onPressed: () => context.push('/profile/my-foods'),
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          label: const Text('Manage food ad'),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     _buildReactionsRow(p),
                     const SizedBox(height: 8),
@@ -963,9 +974,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             final type = (post.postType ?? '').trim();
             return type != 'market' &&
                 type != 'service_offer' &&
-                type != 'service_request' &&
-                type != 'food_ad' &&
-                type != 'food';
+                type != 'service_request';
           })
           .toList();
 

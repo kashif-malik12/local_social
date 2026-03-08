@@ -4,6 +4,7 @@ class Post {
   final String content;
 
   final String? imageUrl;
+  final String? secondImageUrl;
   final String? videoUrl;
   final String shareScope;
   final String? sharedPostId;
@@ -40,6 +41,7 @@ class Post {
     required this.longitude,
     required this.createdAt,
     this.imageUrl,
+    this.secondImageUrl,
     this.videoUrl,
     this.shareScope = 'none',
     this.sharedPostId,
@@ -88,6 +90,7 @@ class Post {
       userId: map['user_id'] as String,
       content: (map['content'] ?? '') as String,
       imageUrl: map['image_url'] as String?,
+      secondImageUrl: map['second_image_url'] as String?,
       videoUrl: map['video_url'] as String?,
       shareScope: (map['share_scope'] as String?) ?? 'none',
       sharedPostId: map['shared_post_id'] as String?,

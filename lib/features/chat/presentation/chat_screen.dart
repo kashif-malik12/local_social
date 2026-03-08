@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../widgets/global_app_bar.dart';
 import '../../../widgets/global_bottom_nav.dart';
+import '../../../widgets/chat_user_actions.dart';
 import '../services/chat_service.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -26,6 +28,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // ✅ Header (other user)
   String _otherName = 'Chat';
+  String? _otherUserId;
 
   RealtimeChannel? _msgChannel;
 
@@ -87,6 +90,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
 
     setState(() {
+      _otherUserId = other;
       _otherName = (fullName != null && fullName.isNotEmpty) ? fullName : 'Chat';
     });
   }
@@ -161,6 +165,22 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _deleteConversation() async {
+    try {
+      await _service.deleteConversation(widget.conversationId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chat deleted.')),
+      );
+      context.go('/chats');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Delete failed: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final myId = _db.auth.currentUser?.id;
@@ -171,6 +191,22 @@ class _ChatScreenState extends State<ChatScreen> {
         title: _otherName,
         showBackIfPossible: true,
         homeRoute: '/feed',
+        actions: [
+          if ((_otherUserId ?? '').isNotEmpty)
+            IconButton(
+              tooltip: 'User options',
+              onPressed: () => openChatUserActions(
+                context: context,
+                otherUserId: _otherUserId!,
+                onBlocked: () async {
+                  if (!mounted) return;
+                  context.go('/chats');
+                },
+                onDeleteChat: _deleteConversation,
+              ),
+              icon: const Icon(Icons.more_vert),
+            ),
+        ],
       ),
       bottomNavigationBar: const GlobalBottomNav(),
       body: _loading

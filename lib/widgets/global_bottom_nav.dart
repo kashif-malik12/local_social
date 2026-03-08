@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/chat_singletons.dart';
+import '../features/moderation/providers/admin_access_provider.dart';
 import '../features/notifications/providers/notification_unread_provider.dart';
 
 class GlobalBottomNav extends ConsumerWidget {
@@ -104,6 +105,9 @@ class GlobalBottomNav extends ConsumerWidget {
 
   Future<void> _openOptions(BuildContext context) async {
     final currentPath = GoRouterState.of(context).uri.path;
+    final isAdmin = await ProviderScope.containerOf(context).read(adminAccessProvider.future);
+
+    if (!context.mounted) return;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -195,6 +199,16 @@ class GlobalBottomNav extends ConsumerWidget {
                     context.push('/profile');
                   },
                 ),
+                if (isAdmin)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.admin_panel_settings_outlined),
+                    title: const Text('Admin portal'),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      context.push('/adminlive');
+                    },
+                  ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.logout),

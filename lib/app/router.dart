@@ -147,7 +147,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/marketplace/product/:id',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return MarketplaceProductDetailScreen(postId: id);
+          final initialTab = state.uri.queryParameters['tab'] == 'qa' ? 1 : 0;
+          return MarketplaceProductDetailScreen(postId: id, initialTab: initialTab);
         },
       ),
 
@@ -161,7 +162,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/gigs/service/:id',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return GigDetailScreen(postId: id);
+          final initialTab = state.uri.queryParameters['tab'] == 'qa' ? 1 : 0;
+          return GigDetailScreen(postId: id, initialTab: initialTab);
         },
       ),
 

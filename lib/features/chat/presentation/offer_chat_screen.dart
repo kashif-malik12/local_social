@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../widgets/global_bottom_nav.dart';
+import '../../../widgets/chat_user_actions.dart';
 
 import '../services/offer_chat_service.dart';
 
@@ -23,10 +24,11 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
   bool _busy = false;
   String? _error;
   String _postTitle = 'Offer chat';
+  String? _postId;
   String _postType = '';
-  String _priceLabel = '';
   String? _sellerId;
   String? _buyerId;
+  String? _otherUserId;
   double? _currentOfferAmount;
   String _currentOfferStatus = 'none';
   String? _currentOfferBy;
@@ -103,15 +105,15 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
 
     final rawTitle = (post['market_title'] as String?)?.trim();
     final content = (post['content'] as String?)?.trim() ?? '';
-    final price = (post['market_price'] as num?)?.toDouble();
-
     if (!mounted) return;
+    final otherUserId = me == conversation['buyer_id'] ? conversation['seller_id'] as String? : conversation['buyer_id'] as String?;
     setState(() {
+      _postId = post['id'] as String?;
       _buyerId = conversation['buyer_id'] as String?;
       _sellerId = conversation['seller_id'] as String?;
+      _otherUserId = otherUserId;
       _postType = (post['post_type'] as String?) ?? '';
       _postTitle = (rawTitle != null && rawTitle.isNotEmpty) ? rawTitle : content;
-      _priceLabel = price == null ? '' : 'EUR ${price.toStringAsFixed(2)}';
       _currentOfferAmount =
           (conversation['current_offer_amount'] as num?)?.toDouble();
       _currentOfferStatus =
@@ -352,19 +354,6 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
   bool get _canCounterOffer =>
       _currentOfferAmount != null && _currentOfferStatus != 'accepted';
 
-  String _postTypeLabel() {
-    switch (_postType) {
-      case 'market':
-        return 'Product';
-      case 'service_offer':
-        return 'Service offer';
-      case 'service_request':
-        return 'Service request';
-      default:
-        return 'Listing';
-    }
-  }
-
   String _offerStatusLabel() {
     if (_currentOfferAmount == null) return 'No active offer yet';
 
@@ -384,6 +373,16 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
     return 'Waiting for response';
   }
 
+  String? _listingRoute() {
+    final postId = _postId;
+    if (postId == null || postId.isEmpty) return null;
+    if (_postType == 'market') return '/marketplace/product/$postId';
+    if (_postType == 'service_offer' || _postType == 'service_request') {
+      return '/gigs/service/$postId';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final myId = _db.auth.currentUser?.id;
@@ -401,6 +400,19 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
               )
             : null,
         actions: [
+          if ((_otherUserId ?? '').isNotEmpty)
+            IconButton(
+              tooltip: 'User options',
+              onPressed: () => openChatUserActions(
+                context: context,
+                otherUserId: _otherUserId!,
+                onBlocked: () async {
+                  if (!mounted) return;
+                  context.go('/chats');
+                },
+              ),
+              icon: const Icon(Icons.more_vert),
+            ),
           IconButton(
             tooltip: 'Home',
             onPressed: () => context.go('/feed'),
@@ -444,16 +456,72 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 8,
-                                        children: [
-                                          _HeaderPill(label: _postTypeLabel()),
-                                          if (_priceLabel.isNotEmpty) _HeaderPill(label: _priceLabel),
-                                          _HeaderPill(label: _offerActionTitle()),
-                                        ],
+                                      if (_listingRoute() != null) ...[
+                                        InkWell(
+                                          onTap: () => context.push(_listingRoute()!),
+                                          borderRadius: BorderRadius.circular(18),
+                                          child: Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.all(14),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF7F0E4),
+                                              borderRadius: BorderRadius.circular(18),
+                                              border: Border.all(color: const Color(0xFFE6DDCE)),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 42,
+                                                  height: 42,
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFF0F766E).withOpacity(0.12),
+                                                    borderRadius: BorderRadius.circular(14),
+                                                  ),
+                                                  child: Icon(
+                                                    _postType == 'market'
+                                                        ? Icons.storefront_outlined
+                                                        : Icons.work_outline,
+                                                    color: const Color(0xFF0F766E),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        _postTitle,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: const TextStyle(
+                                                          fontWeight: FontWeight.w800,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      const Text(
+                                                        'Open listing details',
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                          color: Color(0xFF5B6B65),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const Icon(Icons.open_in_new, size: 18),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                      ],
+                                      Text(
+                                        _offerActionTitle(),
+                                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                            ),
                                       ),
-                                      const SizedBox(height: 10),
+                                      const SizedBox(height: 8),
                                       Text(
                                         _offerStatusLabel(),
                                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -581,31 +649,6 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
                     ),
                   ],
                 ),
-    );
-  }
-}
-
-class _HeaderPill extends StatelessWidget {
-  final String label;
-
-  const _HeaderPill({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4EBDD),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFE6DDCE)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
     );
   }
 }

@@ -136,8 +136,7 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
   }
 
   void _subscribeRealtime() {
-    if (_msgChannel == null) {
-      _msgChannel = _db.channel('offer-chat-${widget.conversationId}')
+    _msgChannel ??= _db.channel('offer-chat-${widget.conversationId}')
         ..onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
@@ -167,10 +166,8 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
           },
         )
         ..subscribe();
-    }
 
-    if (_convChannel == null) {
-      _convChannel = _db.channel('offer-conversation-${widget.conversationId}')
+    _convChannel ??= _db.channel('offer-conversation-${widget.conversationId}')
         ..onPostgresChanges(
           event: PostgresChangeEvent.update,
           schema: 'public',
@@ -202,7 +199,6 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
           },
         )
         ..subscribe();
-    }
   }
 
   Future<void> _send() async {

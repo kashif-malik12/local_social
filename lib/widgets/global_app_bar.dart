@@ -141,7 +141,7 @@ class GlobalAppBar extends ConsumerWidget implements PreferredSizeWidget {
           ),
           ValueListenableBuilder<int>(
             valueListenable: unreadBadgeController.unread,
-            builder: (_, unread, __) {
+            builder: (_, unread, _) {
               return _actionIcon(
                 context: context,
                 tooltip: 'Messages',

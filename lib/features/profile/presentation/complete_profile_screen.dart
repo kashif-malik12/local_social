@@ -26,9 +26,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _bio = TextEditingController();
 
   final _zipCtrl = TextEditingController();
+  final _cityCtrl = TextEditingController();
   double? _lat;
   double? _lng;
-  String? _city;
+  String? _savedZip;
+  bool _zipLocked = false;
 
   String _accountType = 'person'; // person | business | org
   String? _orgKind; // government | nonprofit | news_agency (only when org)
@@ -45,11 +47,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   bool _loading = false;
   String? _error;
 
-  /// ✅ Zip is locked once it's already set (5 digits) in the profile.
-  bool get _isZipLocked {
-    final z = _zipCtrl.text.trim();
-    return z.isNotEmpty && RegExp(r'^\d{5}$').hasMatch(z);
-  }
+  bool get _isZipLocked => _zipLocked;
 
   @override
   void initState() {
@@ -62,6 +60,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     _name.dispose();
     _bio.dispose();
     _zipCtrl.dispose();
+    _cityCtrl.dispose();
     super.dispose();
   }
 
@@ -118,7 +117,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         .eq('id', userId);
 
     if (!mounted) return;
-    setState(() => _city = resolved);
+    setState(() => _cityCtrl.text = resolved);
   }
 
   Future<void> _loadProfile() async {
@@ -151,7 +150,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         _name.text = (data?['full_name'] as String?) ?? '';
         _bio.text = (data?['bio'] as String?) ?? '';
         _zipCtrl.text = (data?['zipcode'] as String?) ?? '';
-        _city = data?['city'] as String?;
+        _cityCtrl.text = (data?['city'] as String?) ?? '';
+        _savedZip = (data?['zipcode'] as String?)?.trim();
+        _zipLocked = _savedZip != null && RegExp(r'^\d{5}$').hasMatch(_savedZip!);
 
         _avatarUrl = (data?['avatar_url'] as String?);
 
@@ -169,8 +170,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         _radiusKm = (data?['radius_km'] as int?) ?? 5;
       });
 
-      final zip = (data?['zipcode'] as String?)?.trim() ?? '';
-      final city = (data?['city'] as String?)?.trim() ?? '';
+      final zip = (data['zipcode'] as String?)?.trim() ?? '';
+      final city = (data['city'] as String?)?.trim() ?? '';
       if (city.isEmpty && zip.isNotEmpty) {
         await _backfillCityIfMissing(userId: user.id, zip: zip);
       }
@@ -281,16 +282,16 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         _lat = lat;
         _lng = lng;
         if (city != null && city.trim().isNotEmpty) {
-          _city = city.trim();
+          _cityCtrl.text = city.trim();
         }
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _city != null && _city!.isNotEmpty
-                ? 'Location set for $zip • $_city'
-                : 'Location set for $zip',
+            _cityCtrl.text.trim().isNotEmpty
+                ? 'Location set for $zip • ${_cityCtrl.text.trim()}'
+                : 'Location set for $zip. Add your city manually if needed.',
           ),
         ),
       );
@@ -315,8 +316,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       final fullName = _name.text.trim();
       if (fullName.isEmpty) throw 'Name is required';
 
-      // ✅ Only validate zipcode/location if NOT locked (i.e., first-time set)
       final zip = _zipCtrl.text.trim();
+      final city = _cityCtrl.text.trim();
       if (!_isZipLocked) {
         if (!RegExp(r'^\d{5}$').hasMatch(zip)) {
           throw 'Enter a valid 5-digit French postal code (e.g. 91000)';
@@ -324,6 +325,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         if (_lat == null || _lng == null) {
           throw 'Please set your location (zip code) first';
         }
+      }
+      if (city.isEmpty) {
+        throw 'City is required';
       }
 
       if (_accountType == 'org' && _orgKind == null) {
@@ -351,14 +355,15 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         'business_type': (_accountType == 'business' && !_isRestaurant) ? _businessType : null,
         
         'radius_km': _radiusKm,
-        'city': _city,
+        'city': city,
 
         // ✅ keep avatar
         'avatar_url': _avatarUrl,
       };
 
-      // ✅ Only send zipcode/lat/lng on first-time set
-      if (!_isZipLocked) {
+      if (_isZipLocked) {
+        updateData['zipcode'] = _savedZip;
+      } else {
         updateData.addAll({
           'zipcode': zip,
           'latitude': _lat,
@@ -375,7 +380,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         final msg = (e.message).toLowerCase();
         if (!msg.contains('is_restaurant') &&
             !msg.contains('restaurant_type') &&
-            !msg.contains('business_type')) rethrow;
+            !msg.contains('business_type')) {
+          rethrow;
+        }
 
         final fallback = Map<String, dynamic>.from(updateData)
           ..remove('is_restaurant')
@@ -388,7 +395,12 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         });
       }
 
-      if (mounted) context.go('/feed');
+      if (!mounted) return;
+      setState(() {
+        _savedZip = zip;
+        _zipLocked = RegExp(r'^\d{5}$').hasMatch(zip);
+      });
+      context.go('/feed');
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -510,7 +522,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             const SizedBox(height: 16),
 
             DropdownButtonFormField<String>(
-              value: _accountType,
+              initialValue: _accountType,
               items: const [
                 DropdownMenuItem(value: 'person', child: Text('Person')),
                 DropdownMenuItem(value: 'business', child: Text('Business')),
@@ -536,7 +548,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
             if (_accountType == 'org') ...[
               DropdownButtonFormField<String>(
-                value: _orgKind,
+                initialValue: _orgKind,
                 items: const [
                   DropdownMenuItem(value: 'government', child: Text('Government')),
                   DropdownMenuItem(value: 'nonprofit', child: Text('Non-profit')),
@@ -574,7 +586,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               const SizedBox(height: 8),
               if (_isRestaurant) ...[
                 DropdownButtonFormField<String>(
-                  value: _restaurantType,
+                  initialValue: _restaurantType,
                   items: restaurantMainCategories
                       .map((c) => DropdownMenuItem(
                             value: c,
@@ -591,7 +603,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               ],
               if (!_isRestaurant) ...[
                 DropdownButtonFormField<String>(
-                  value: _businessType,
+                  initialValue: _businessType,
                   items: businessMainCategories
                       .map((c) => DropdownMenuItem(
                             value: c,
@@ -649,17 +661,27 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _cityCtrl,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'City',
+                hintText: 'Auto-filled from postal code, or enter manually',
+              ),
+            ),
             const SizedBox(height: 8),
             if (_lat != null && _lng != null)
               Text(
-                _city != null && _city!.isNotEmpty
-                    ? 'City: $_city • Lat/Lng: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}'
+                _cityCtrl.text.trim().isNotEmpty
+                    ? 'City: ${_cityCtrl.text.trim()} • Lat/Lng: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}'
                     : 'Lat/Lng: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}',
               ),
 
             const SizedBox(height: 12),
             DropdownButtonFormField<int>(
-              value: _radiusKm,
+              initialValue: _radiusKm,
               items: const [
                 DropdownMenuItem(value: 5, child: Text('5 km')),
                 DropdownMenuItem(value: 10, child: Text('10 km')),

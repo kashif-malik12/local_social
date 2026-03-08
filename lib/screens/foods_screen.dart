@@ -158,7 +158,7 @@ class _FoodsScreenState extends State<FoodsScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               items: [
                 const DropdownMenuItem(value: 'all', child: Text('All food categories')),
                 ...foodMainCategories.map(

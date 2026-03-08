@@ -473,7 +473,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
       return ListView.separated(
         itemCount: _profiles.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, i) {
           final p = _profiles[i];
           final id = (p['id'] ?? '').toString();
@@ -508,7 +508,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
     return ListView.separated(
       itemCount: _posts.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, i) {
         final p = _posts[i];
         final content = (p['content'] ?? '').toString();

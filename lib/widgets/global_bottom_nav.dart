@@ -258,7 +258,7 @@ class GlobalBottomNav extends ConsumerWidget {
             ),
             ValueListenableBuilder<int>(
               valueListenable: unreadBadgeController.unread,
-              builder: (_, unread, __) {
+              builder: (_, unread, _) {
                 return _navItem(
                   context: context,
                   icon: Icons.chat_bubble_outline,

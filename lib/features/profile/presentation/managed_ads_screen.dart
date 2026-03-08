@@ -381,7 +381,7 @@ class _ManagedAdsScreenState extends State<ManagedAdsScreen> {
                               )
                             : ListView.separated(
                                 itemCount: _rows.length,
-                                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                                separatorBuilder: (_, _) => const SizedBox(height: 12),
                                 itemBuilder: (context, index) {
                                   final row = _rows[index];
                                   final title = ((row['market_title'] ?? '').toString().trim().isNotEmpty
@@ -414,7 +414,7 @@ class _ManagedAdsScreenState extends State<ManagedAdsScreen> {
                                                   : Image.network(
                                                       imageUrl,
                                                       fit: BoxFit.cover,
-                                                      errorBuilder: (_, __, ___) =>
+                                                      errorBuilder: (_, _, _) =>
                                                           const Icon(Icons.broken_image_outlined),
                                                     ),
                                             ),

@@ -190,7 +190,7 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               items: [
                 const DropdownMenuItem(value: 'all', child: Text('All categories')),
                 ...businessMainCategories.map(
@@ -238,7 +238,7 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
                         ? const Center(child: Text('No businesses found'))
                         : ListView.separated(
                             itemCount: _businesses.length,
-                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            separatorBuilder: (_, _) => const Divider(height: 1),
                             itemBuilder: (context, i) {
                               final b = _businesses[i];
                               final lat = (b['latitude'] as num?)?.toDouble();

@@ -31,68 +31,36 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await Supabase.instance.client.auth.signInWithPassword(
+      final client = Supabase.instance.client;
+      final result = await client.auth.signInWithPassword(
         email: _email.text.trim(),
         password: _password.text,
       );
+      final userId = result.user?.id;
+      if (userId == null) {
+        throw 'Sign in failed';
+      }
+
+      try {
+        final profile = await client
+            .from('profiles')
+            .select('is_disabled')
+            .eq('id', userId)
+            .maybeSingle();
+
+        if (profile?['is_disabled'] == true) {
+          await client.auth.signOut();
+          throw 'This account has been disabled. Contact an administrator.';
+        }
+      } on PostgrestException {
+        // Allow login if the moderation migration has not been applied yet.
+      }
+
       if (mounted) context.go('/feed');
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _forgotPassword() async {
-    final emailController = TextEditingController(text: _email.text.trim());
-
-    final email = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reset password'),
-        content: TextField(
-          controller: emailController,
-          keyboardType: TextInputType.emailAddress,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Email',
-            prefixIcon: Icon(Icons.mail_outline),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(emailController.text.trim()),
-            child: const Text('Send link'),
-          ),
-        ],
-      ),
-    );
-
-    emailController.dispose();
-
-    if (!mounted || email == null || email.isEmpty) return;
-
-    try {
-      final redirectTo = Uri.base
-          .replace(path: '/reset-password', query: null, fragment: null)
-          .toString();
-      await Supabase.instance.client.auth.resetPasswordForEmail(
-        email,
-        redirectTo: redirectTo,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Password reset email sent to $email')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Reset failed: $e')),
-      );
     }
   }
 
@@ -238,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
-                            onPressed: _forgotPassword,
+                            onPressed: () => context.go('/forgot-password'),
                             child: const Text('Forgot password?'),
                           ),
                         ),

@@ -97,7 +97,7 @@ class ReactionService {
       'post_id': postId,
       'user_id': _me,
       'content': trimmed,
-      if (parentCommentId != null) 'parent_comment_id': parentCommentId,
+      'parent_comment_id': ?parentCommentId,
     }).select('id').single();
 
     final commentId = (inserted['id'] ?? '').toString();

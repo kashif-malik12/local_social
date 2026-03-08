@@ -28,6 +28,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
   bool _loadingPosts = true;
   bool _loadingUsers = true;
   bool _loadingStats = true;
+  final Set<String> _busyUserIds = <String>{};
   String? _errorPosts;
   String? _errorUsers;
   String? _errorStats;
@@ -212,7 +213,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
             .limit(12),
         _db
             .from('profiles')
-            .select('id, full_name, profile_type, account_type, org_kind')
+            .select('id, full_name, profile_type, account_type, org_kind, is_disabled')
             .order('created_at', ascending: false)
             .limit(12),
       ]);
@@ -357,23 +358,63 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
     }
   }
 
-  Future<void> _setUserBan(String userId, bool banned) async {
+  Future<void> _setUserDisabled(String userId, bool disabled) async {
     final ok = await _confirm(
-      title: banned ? 'Ban user?' : 'Unban user?',
-      message: banned
-          ? 'This will prevent the user from using the app (based on your app logic).'
-          : 'This will restore access.',
-      confirmText: banned ? 'Ban' : 'Unban',
-      danger: banned,
+      title: disabled ? 'Disable user?' : 'Enable user?',
+      message: disabled
+          ? 'This will block the user from logging in until you enable the account again.'
+          : 'This will restore login access for this user.',
+      confirmText: disabled ? 'Disable' : 'Enable',
+      danger: disabled,
     );
     if (!ok) return;
 
+    if (mounted) {
+      setState(() => _busyUserIds.add(userId));
+    }
+
     try {
-      await _db.rpc('admin_set_user_ban',
-          params: {'p_user_id': userId, 'p_banned': banned});
-      if (mounted) _snack(banned ? 'User banned' : 'User unbanned');
+      await _db.rpc(
+        'admin_set_user_disabled',
+        params: {'p_user_id': userId, 'p_disabled': disabled},
+      );
+      await Future.wait([_loadStats(), _loadUserReports()]);
+      if (mounted) {
+        _snack(disabled ? 'User disabled' : 'User enabled');
+      }
     } catch (e) {
       if (mounted) _snack('Failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _busyUserIds.remove(userId));
+      }
+    }
+  }
+
+  Future<void> _deleteUser(String userId) async {
+    final ok = await _confirm(
+      title: 'Delete user?',
+      message:
+          'This will permanently delete the account, remove the profile, delete related user data, and remove the avatar. This cannot be undone.',
+      confirmText: 'Delete forever',
+      danger: true,
+    );
+    if (!ok) return;
+
+    if (mounted) {
+      setState(() => _busyUserIds.add(userId));
+    }
+
+    try {
+      await _db.rpc('admin_delete_user_account', params: {'p_user_id': userId});
+      await Future.wait([_loadStats(), _loadUserReports()]);
+      if (mounted) _snack('User deleted');
+    } catch (e) {
+      if (mounted) _snack('Failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _busyUserIds.remove(userId));
+      }
     }
   }
 
@@ -978,8 +1019,13 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
                             child: _AdminUserListTile(
                               title: ((user['full_name'] ?? 'Unnamed user')).toString(),
                               subtitle: _adminUserTypeLabel(user),
-                              onBan: () => _setUserBan((user['id'] ?? '').toString(), true),
-                              onUnban: () => _setUserBan((user['id'] ?? '').toString(), false),
+                              isDisabled: user['is_disabled'] == true,
+                              busy: _busyUserIds.contains((user['id'] ?? '').toString()),
+                              onToggleDisabled: () => _setUserDisabled(
+                                (user['id'] ?? '').toString(),
+                                !(user['is_disabled'] == true),
+                              ),
+                              onDelete: () => _deleteUser((user['id'] ?? '').toString()),
                             ),
                           ))
                       .toList(),
@@ -1055,7 +1101,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
       child: ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: _postReports.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) {
           final r = _postReports[i];
           final id = r['id'].toString();
@@ -1125,7 +1171,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
       child: ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: _userReports.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) {
           final r = _userReports[i];
           final id = r['id'].toString();
@@ -1161,7 +1207,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
               ),
               ElevatedButton.icon(
                 onPressed: () async {
-                  await _setUserBan(reportedUserId, true);
+                  await _setUserDisabled(reportedUserId, true);
                   await _setReportStatus(
                     table: 'user_reports',
                     reportId: id,
@@ -1169,12 +1215,12 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
                   );
                 },
                 icon: const Icon(Icons.block),
-                label: const Text('Ban user'),
+                label: const Text('Disable user'),
               ),
               OutlinedButton.icon(
-                onPressed: () => _setUserBan(reportedUserId, false),
-                icon: const Icon(Icons.undo),
-                label: const Text('Unban'),
+                onPressed: () => _deleteUser(reportedUserId),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Delete user'),
               ),
             ],
           );
@@ -1547,7 +1593,7 @@ class _AdminPostPreviewCard extends StatelessWidget {
                   : Image.network(
                       imageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
+                      errorBuilder: (_, _, _) => const Icon(
                         Icons.broken_image_outlined,
                         color: Color(0xFFCC7A00),
                       ),
@@ -1609,14 +1655,18 @@ class _AdminPostPreviewCard extends StatelessWidget {
 class _AdminUserListTile extends StatelessWidget {
   final String title;
   final String subtitle;
-  final VoidCallback onBan;
-  final VoidCallback onUnban;
+  final bool isDisabled;
+  final bool busy;
+  final VoidCallback onToggleDisabled;
+  final VoidCallback onDelete;
 
   const _AdminUserListTile({
     required this.title,
     required this.subtitle,
-    required this.onBan,
-    required this.onUnban,
+    required this.isDisabled,
+    required this.busy,
+    required this.onToggleDisabled,
+    required this.onDelete,
   });
 
   @override
@@ -1658,6 +1708,26 @@ class _AdminUserListTile extends StatelessWidget {
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: isDisabled
+                        ? const Color(0xFFFDECEC)
+                        : const Color(0xFFE8F5EE),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    isDisabled ? 'Disabled' : 'Active',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isDisabled
+                          ? const Color(0xFFD92D20)
+                          : const Color(0xFF0F766E),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1667,12 +1737,15 @@ class _AdminUserListTile extends StatelessWidget {
             runSpacing: 8,
             children: [
               OutlinedButton(
-                onPressed: onBan,
-                child: const Text('Ban'),
+                onPressed: busy ? null : onToggleDisabled,
+                child: Text(isDisabled ? 'Enable' : 'Disable'),
               ),
-              OutlinedButton(
-                onPressed: onUnban,
-                child: const Text('Unban'),
+              FilledButton.tonal(
+                onPressed: busy ? null : onDelete,
+                style: FilledButton.styleFrom(
+                  foregroundColor: const Color(0xFFD92D20),
+                ),
+                child: const Text('Delete'),
               ),
             ],
           ),

@@ -771,7 +771,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   _buildMediaSection(),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _visibility,
+                    initialValue: _visibility,
                     items: const [
                       DropdownMenuItem(value: 'public', child: Text('Public')),
                       DropdownMenuItem(value: 'followers', child: Text('Local')),
@@ -784,7 +784,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _shareScope,
+                    initialValue: _shareScope,
                     items: const [
                       DropdownMenuItem(value: 'none', child: Text('No sharing')),
                       DropdownMenuItem(value: 'followers', child: Text('Followers can share')),

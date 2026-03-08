@@ -90,7 +90,7 @@ class _ReportPostSheetState extends State<ReportPostSheet> {
             const SizedBox(height: 14),
 
             DropdownButtonFormField<String>(
-              value: _reason,
+              initialValue: _reason,
               items: _reasons
                   .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                   .toList(),

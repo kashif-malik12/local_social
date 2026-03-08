@@ -56,7 +56,7 @@ class YoutubePreview extends StatelessWidget {
                 child: Image.network(
                   thumb!,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  errorBuilder: (_, _, _) => Container(
                     color: Colors.black12,
                     alignment: Alignment.center,
                     child: const Icon(Icons.play_circle_outline, size: 48),

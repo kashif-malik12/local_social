@@ -13,6 +13,7 @@ import '../app/go_router_refresh_stream.dart';
 // ✅ Screens
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
+import '../features/auth/presentation/forgot_password_screen.dart';
 import '../features/auth/presentation/reset_password_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/profile/presentation/complete_profile_screen.dart';
@@ -62,7 +63,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final loggedIn = session != null && user != null;
 
       final path = state.uri.path;
-      final isAuth = path == '/login' || path == '/register';
+      final isAuth =
+          path == '/login' || path == '/register' || path == '/forgot-password';
       final isOnboarding = path == '/complete-profile';
       final isProfile = path == '/profile';
       final isResetPassword = path == '/reset-password';
@@ -83,11 +85,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (isProfile || isResetPassword) return null;
 
       // ✅ Profile completeness check
-      final profile = await Supabase.instance.client
-          .from('profiles')
-          .select('full_name, account_type, latitude, longitude')
-          .eq('id', user.id)
-          .maybeSingle();
+      Map<String, dynamic>? profile;
+      try {
+        profile = await Supabase.instance.client
+            .from('profiles')
+            .select('full_name, account_type, latitude, longitude, is_disabled')
+            .eq('id', user.id)
+            .maybeSingle();
+      } on PostgrestException {
+        profile = await Supabase.instance.client
+            .from('profiles')
+            .select('full_name, account_type, latitude, longitude')
+            .eq('id', user.id)
+            .maybeSingle();
+      }
+
+      if (profile?['is_disabled'] == true) {
+        await auth.signOut();
+        return '/login';
+      }
 
       final fullName = profile?['full_name'] as String?;
       final accountType = profile?['account_type'] as String?;
@@ -116,6 +132,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
+      ),
+
+      GoRoute(
+        path: '/forgot-password',
+        builder: (context, state) => const ForgotPasswordScreen(),
       ),
 
       GoRoute(

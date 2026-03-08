@@ -183,7 +183,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               items: [
                 const DropdownMenuItem(value: 'all', child: Text('All types')),
                 ...restaurantMainCategories.map(
@@ -231,7 +231,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
                         ? const Center(child: Text('No restaurants found'))
                         : ListView.separated(
                             itemCount: _restaurants.length,
-                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            separatorBuilder: (_, _) => const Divider(height: 1),
                             itemBuilder: (context, i) {
                               final r = _restaurants[i];
                               final lat = (r['latitude'] as num?)?.toDouble();

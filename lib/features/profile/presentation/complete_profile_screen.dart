@@ -1,8 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -74,50 +72,34 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   Future<String?> _resolveCityFromZipcode(String zip) async {
     if (!RegExp(r'^\d{5}$').hasMatch(zip)) return null;
 
-    if (kIsWeb) {
-      final uri = Uri.parse(
-        'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&country=France&postalcode=$zip&limit=1',
-      );
-
-      final res = await http.get(uri, headers: {
-        'User-Agent': 'local-social-app/1.0',
-      });
-
-      if (res.statusCode != 200) return null;
-
-      final data = jsonDecode(res.body);
-      if (data is! List || data.isEmpty) return null;
-
-      final first = data.first;
-      if (first is! Map) return null;
-
-      final row = Map<String, dynamic>.from(first);
-      final address = row['address'] is Map
-          ? Map<String, dynamic>.from(row['address'] as Map)
-          : const <String, dynamic>{};
-      final displayName = row['display_name']?.toString();
-
-      return (address['city'] ??
-              address['town'] ??
-              address['village'] ??
-              displayName?.split(',').first)
-          ?.toString()
-          .trim();
-    }
-
-    final results = await locationFromAddress('$zip, France');
-    if (results.isEmpty) return null;
-
-    final placemarks = await placemarkFromCoordinates(
-      results.first.latitude,
-      results.first.longitude,
+    final uri = Uri.parse(
+      'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&country=France&postalcode=$zip&limit=1',
     );
-    if (placemarks.isEmpty) return null;
 
-    return (placemarks.first.locality?.trim().isNotEmpty == true
-            ? placemarks.first.locality
-            : placemarks.first.subAdministrativeArea)
-        ?.trim();
+    final res = await http.get(uri, headers: {
+      'User-Agent': 'local-social-app/1.0',
+    });
+
+    if (res.statusCode != 200) return null;
+
+    final data = jsonDecode(res.body);
+    if (data is! List || data.isEmpty) return null;
+
+    final first = data.first;
+    if (first is! Map) return null;
+
+    final row = Map<String, dynamic>.from(first);
+    final address = row['address'] is Map
+        ? Map<String, dynamic>.from(row['address'] as Map)
+        : const <String, dynamic>{};
+    final displayName = row['display_name']?.toString();
+
+    return (address['city'] ??
+            address['town'] ??
+            address['village'] ??
+            displayName?.split(',').first)
+        ?.toString()
+        .trim();
   }
 
   Future<void> _backfillCityIfMissing({
@@ -261,39 +243,29 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       double? lng;
       String? city;
 
-      if (kIsWeb) {
-        final uri = Uri.parse(
-          'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&country=France&postalcode=$zip&limit=1',
-        );
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&country=France&postalcode=$zip&limit=1',
+      );
 
-        final res = await http.get(uri, headers: {
-          'User-Agent': 'local-social-app/1.0',
-        });
+      final res = await http.get(uri, headers: {
+        'User-Agent': 'local-social-app/1.0',
+      });
 
-        if (res.statusCode != 200) {
-          throw 'Geocoding failed (HTTP ${res.statusCode}). Try again.';
-        }
+      if (res.statusCode != 200) {
+        throw 'Geocoding failed (HTTP ${res.statusCode}). Try again.';
+      }
 
-        final data = jsonDecode(res.body);
-        if (data is! List || data.isEmpty) {
-          throw 'Postal code not found. Try another one.';
-        }
+      final data = jsonDecode(res.body);
+      if (data is! List || data.isEmpty) {
+        throw 'Postal code not found. Try another one.';
+      }
 
-        lat = double.tryParse(data[0]['lat']?.toString() ?? '');
-        lng = double.tryParse(data[0]['lon']?.toString() ?? '');
-        city = await _resolveCityFromZipcode(zip);
+      lat = double.tryParse(data[0]['lat']?.toString() ?? '');
+      lng = double.tryParse(data[0]['lon']?.toString() ?? '');
+      city = await _resolveCityFromZipcode(zip);
 
-        if (lat == null || lng == null) {
-          throw 'Geocoding returned invalid coordinates. Try another zip.';
-        }
-      } else {
-        final results = await locationFromAddress('$zip, France');
-        if (results.isEmpty) {
-          throw 'Postal code not found. Try another one.';
-        }
-        lat = results.first.latitude;
-        lng = results.first.longitude;
-        city = await _resolveCityFromZipcode(zip);
+      if (lat == null || lng == null) {
+        throw 'Geocoding returned invalid coordinates. Try another zip.';
       }
 
       if (!mounted) return;

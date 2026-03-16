@@ -1,8 +1,21 @@
 #!/bin/bash
-# Build script for Flutter web — injects Firebase secrets at build time.
+# Build and deploy Flutter web to VPS.
 # Copy .env.local.example to .env.local and fill in your values before running.
+#
+# Usage:
+#   bash scripts/build_web.sh          # build only
+#   bash scripts/build_web.sh --deploy # build + deploy to VPS
 
 set -e
+
+DEPLOY=false
+if [[ "$1" == "--deploy" ]]; then
+  DEPLOY=true
+fi
+
+VPS_USER="deploy"
+VPS_HOST="87.106.13.170"
+VPS_PATH="/var/www/local_social_web"
 
 ENV_FILE="$(dirname "$0")/../.env.local"
 
@@ -27,3 +40,13 @@ flutter build web \
   --dart-define=FIREBASE_WEB_API_KEY="${FIREBASE_WEB_API_KEY}"
 
 echo "Web build complete."
+
+# Deploy to VPS
+if [ "$DEPLOY" = true ]; then
+  echo "Deploying to ${VPS_USER}@${VPS_HOST}:${VPS_PATH}..."
+  ssh "${VPS_USER}@${VPS_HOST}" "rm -rf ${VPS_PATH}/*"
+  scp -r build/web/* "${VPS_USER}@${VPS_HOST}:${VPS_PATH}/"
+  # Remove template file from server (not needed at runtime)
+  ssh "${VPS_USER}@${VPS_HOST}" "rm -f ${VPS_PATH}/firebase-messaging-sw.js.template"
+  echo "Deploy complete. Live at https://app.allonssy.com"
+fi

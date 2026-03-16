@@ -142,29 +142,25 @@ Android `google-services.json` and web `firebase-messaging-sw.js` were accidenta
 
 ### Running web locally
 ```bash
-# Full build (generates service worker + builds)
-bash scripts/build_web.sh
-
 # Debug run only (service worker must already exist locally)
 flutter run -d chrome --dart-define=FIREBASE_WEB_API_KEY=<your_key>
 ```
 
 ### Releasing / deploying web
-Every web release MUST go through these steps in order — never run `flutter build web` or `firebase deploy` directly without generating the service worker first, or FCM push notifications will break.
+Web is hosted on VPS at `deploy@87.106.13.170:/var/www/local_social_web/`, served by **Caddy v2** at `https://app.allonssy.com`. Firebase is used only for FCM and in-app messaging — NOT for hosting.
+
+Every web release MUST go through the build script — never run `flutter build web` directly or the service worker won't be generated and FCM will break.
 
 ```bash
-# Step 1 — ensure .env.local exists with the real key
-cat .env.local   # should show FIREBASE_WEB_API_KEY=...
+# Build + deploy in one command
+bash scripts/build_web.sh --deploy
 
-# Step 2 — build (generates firebase-messaging-sw.js + flutter build web)
+# Build only (no deploy)
 bash scripts/build_web.sh
-
-# Step 3 — deploy to Firebase Hosting
-firebase deploy --only hosting
 ```
 
 After deploying, verify:
-- App loads at your Firebase Hosting URL
+- App loads at https://app.allonssy.com
 - No Firebase errors in browser console (F12)
 - Send a test FCM message from Firebase Console → Engage → Messaging → Send test message
 

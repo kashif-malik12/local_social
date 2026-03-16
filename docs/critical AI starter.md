@@ -14,15 +14,18 @@ Every web release MUST go through these steps in order. Never run `flutter build
 # Step 1 — ensure .env.local exists with the real key
 cat .env.local   # should show FIREBASE_WEB_API_KEY=...
 
-# Step 2 — build (generates firebase-messaging-sw.js + flutter build web)
-bash scripts/build_web.sh
+# Step 2 — build + deploy to VPS in one command
+bash scripts/build_web.sh --deploy
 
-# Step 3 — deploy to Firebase Hosting
-firebase deploy --only hosting
+# Build only (no deploy)
+bash scripts/build_web.sh
 ```
 
+Web is hosted on VPS at `deploy@87.106.13.170:/var/www/local_social_web/`, served by **Caddy** at `https://app.allonssy.com`.
+Firebase is used only for **FCM push notifications** and **in-app messaging** — NOT for hosting.
+
 After deploying, verify:
-- App loads at your Firebase Hosting URL
+- App loads at https://app.allonssy.com
 - No Firebase errors in browser console (F12)
 - Send a test FCM message from Firebase Console → Engage → Messaging → Send test message
 

@@ -1,6 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../widgets/auth_field_glyph.dart';
+import '../../../widgets/brand_lockup.dart';
+import '../../../widgets/google_mark.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -24,6 +29,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _password.dispose();
     _passwordFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _registerWithGoogle() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      if (kIsWeb) {
+        await Supabase.instance.client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: '${Uri.base.origin}/login',
+        );
+        return;
+      }
+      // On Android, Google sign-in/up is the same flow — redirect to login
+      if (mounted) context.go('/login');
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _register() async {
@@ -113,15 +140,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Join Local Feed',
-                      style: TextStyle(
-                        fontSize: 40,
-                        height: 1,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: -1.1,
-                      ),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // "Join" line
+                        Text(
+                          'Join',
+                          style: TextStyle(
+                            fontSize: 40,
+                            height: 1,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: -1.0,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        // Brand icon + "Allonssy!" on same line
+                        BrandLockup(height: 46),
+                      ],
                     ),
                     const SizedBox(height: 14),
                     Text(
@@ -224,7 +260,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 onSubmitted: (_) => _passwordFocus.requestFocus(),
                                 decoration: const InputDecoration(
                                   labelText: 'Email',
-                                  prefixIcon: Icon(Icons.mail_outline),
+                                  prefixIcon: Padding(
+                                    padding: EdgeInsets.all(14),
+                                    child: AuthFieldGlyph(
+                                      kind: AuthFieldGlyphKind.email,
+                                    ),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 12),
@@ -238,7 +279,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 },
                                 decoration: const InputDecoration(
                                   labelText: 'Password',
-                                  prefixIcon: Icon(Icons.lock_outline),
+                                  prefixIcon: Padding(
+                                    padding: EdgeInsets.all(14),
+                                    child: AuthFieldGlyph(
+                                      kind: AuthFieldGlyphKind.password,
+                                    ),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -255,6 +301,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 child: FilledButton(
                                   onPressed: _loading ? null : _register,
                                   child: Text(_loading ? 'Creating...' : 'Create account'),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: _loading ? null : _registerWithGoogle,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF202124),
+                                    backgroundColor: Colors.white,
+                                    side: const BorderSide(color: Color(0xFF9AA0A6), width: 1.2),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                  ),
+                                  icon: const GoogleMark(size: 22),
+                                  label: const Text('Continue with Google'),
                                 ),
                               ),
                               const SizedBox(height: 10),
@@ -294,12 +358,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
+                    registerCard,
+                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: brandPanel,
                     ),
-                    const SizedBox(height: 16),
-                    registerCard,
                   ],
                 ),
               );

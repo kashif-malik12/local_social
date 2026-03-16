@@ -1,13 +1,17 @@
-import 'dart:io';
+import 'dart:async';
 
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/app.dart';
+import 'core/auth/release_auth_storage.dart';
 import 'core/config/env.dart';
+import 'services/push_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,12 +20,15 @@ Future<void> main() async {
       usePathUrlStrategy();
     }
 
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    }
+
     final releaseAndroidWorkaround =
         !kIsWeb && kReleaseMode && defaultTargetPlatform == TargetPlatform.android;
     final authStorage = releaseAndroidWorkaround
-        ? _FileLocalStorage(
-            persistSessionKey:
-                'sb-${Uri.parse(Env.supabaseUrl).host.split(".").first}-auth-token',
+        ? createReleaseAuthStorage(
+            'sb-${Uri.parse(Env.supabaseUrl).host.split(".").first}-auth-token',
           )
         : null;
 
@@ -31,81 +38,34 @@ Future<void> main() async {
       authOptions: releaseAndroidWorkaround
           ? FlutterAuthClientOptions(
               localStorage: authStorage,
-              pkceAsyncStorage: _FileGotrueAsyncStorage(),
+              pkceAsyncStorage: createReleasePkceStorage(),
             )
           : const FlutterAuthClientOptions(),
+      // Enforce a 10 s request timeout so a slow / unreachable VPS never
+      // causes an ANR by blocking Supabase.initialize() indefinitely.
+      httpClient: _TimeoutHttpClient(),
     );
 
     runApp(const ProviderScope(child: App()));
+    // Defer Firebase / FCM init to after the first frame so the app
+    // paints immediately instead of blocking on SDK initialization.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(PushNotificationService.instance.init());
+    });
   } catch (error, stackTrace) {
     runApp(_StartupErrorApp(error: error, stackTrace: stackTrace));
   }
 }
 
-class _FileLocalStorage extends LocalStorage {
-  _FileLocalStorage({required this.persistSessionKey});
-
-  final String persistSessionKey;
-  late final File _file = File('${Directory.systemTemp.path}\\$persistSessionKey.json');
-
-  @override
-  Future<void> initialize() async {
-    if (!await _file.parent.exists()) {
-      await _file.parent.create(recursive: true);
-    }
-  }
+/// HTTP client that enforces a 10-second timeout on every request.
+/// Prevents Supabase.initialize() from hanging indefinitely when the VPS
+/// is slow to complete a TLS handshake (common on Android emulator).
+class _TimeoutHttpClient extends http.BaseClient {
+  final http.Client _inner = http.Client();
 
   @override
-  Future<String?> accessToken() async {
-    if (!await _file.exists()) return null;
-    return _file.readAsString();
-  }
-
-  @override
-  Future<bool> hasAccessToken() async => _file.exists();
-
-  @override
-  Future<void> persistSession(String persistSessionString) async {
-    await initialize();
-    await _file.writeAsString(persistSessionString, flush: true);
-  }
-
-  @override
-  Future<void> removePersistedSession() async {
-    if (await _file.exists()) {
-      await _file.delete();
-    }
-  }
-}
-
-class _FileGotrueAsyncStorage extends GotrueAsyncStorage {
-  const _FileGotrueAsyncStorage();
-
-  File _fileForKey(String key) => File('${Directory.systemTemp.path}\\gotrue_$key.txt');
-
-  @override
-  Future<String?> getItem({required String key}) async {
-    final file = _fileForKey(key);
-    if (!await file.exists()) return null;
-    return file.readAsString();
-  }
-
-  @override
-  Future<void> removeItem({required String key}) async {
-    final file = _fileForKey(key);
-    if (await file.exists()) {
-      await file.delete();
-    }
-  }
-
-  @override
-  Future<void> setItem({required String key, required String value}) async {
-    final file = _fileForKey(key);
-    if (!await file.parent.exists()) {
-      await file.parent.create(recursive: true);
-    }
-    await file.writeAsString(value, flush: true);
-  }
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      _inner.send(request).timeout(const Duration(seconds: 10));
 }
 
 class _StartupErrorApp extends StatelessWidget {

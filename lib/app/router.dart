@@ -40,6 +40,7 @@ import '../screens/food_ad_detail_screen.dart';
 import '../screens/foods_screen.dart';
 import '../screens/restaurants_screen.dart';
 import '../screens/businesses_screen.dart';
+import '../widgets/main_shell.dart';
 
 // ✅ Chat screens
 import '../features/chat/presentation/chat_list_screen.dart';
@@ -50,6 +51,12 @@ import '../features/chat/presentation/offer_chat_start_screen.dart';
 
 final appRouterNavigatorKey = GlobalKey<NavigatorState>();
 final appRouteObserver = RouteObserver<ModalRoute<void>>();
+
+// Branch navigator keys for the persistent tab shell
+final _feedNavKey = GlobalKey<NavigatorState>(debugLabel: 'feed');
+final _searchNavKey = GlobalKey<NavigatorState>(debugLabel: 'search');
+final _chatNavKey = GlobalKey<NavigatorState>(debugLabel: 'chat');
+final _notifNavKey = GlobalKey<NavigatorState>(debugLabel: 'notif');
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final auth = Supabase.instance.client.auth;
@@ -85,30 +92,49 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // 🔁 Logged in → block auth pages
       if (isAdminRoute) return null;
 
-      if (loggedIn && isAuth) return '/feed';
-
       // Allow /profile always
       if (isProfile || isResetPassword) return null;
 
-      // ✅ Profile completeness check
+      // ✅ Profile completeness check (5 s timeout so a slow network never
+      // freezes navigation indefinitely; on timeout we proceed to /feed).
       Map<String, dynamic>? profile;
+      bool profileFetchFailed = false;
       try {
         profile = await Supabase.instance.client
             .from('profiles')
             .select('full_name, account_type, latitude, longitude, is_disabled, feed_filters')
             .eq('id', user.id)
-            .maybeSingle();
+            .maybeSingle()
+            .timeout(const Duration(seconds: 5));
       } on PostgrestException {
-        profile = await Supabase.instance.client
-            .from('profiles')
-            .select('full_name, account_type, latitude, longitude, feed_filters')
-            .eq('id', user.id)
-            .maybeSingle();
+        try {
+          profile = await Supabase.instance.client
+              .from('profiles')
+              .select('full_name, account_type, latitude, longitude, feed_filters')
+              .eq('id', user.id)
+              .maybeSingle()
+              .timeout(const Duration(seconds: 5));
+        } catch (_) {
+          profileFetchFailed = true;
+        }
+      } catch (_) {
+        // Network timeout or other error — don't block navigation.
+        profileFetchFailed = true;
+      }
+
+      // Fetch failed (timeout/network) → go to feed and re-check later.
+      if (profileFetchFailed && !isOnboarding && !isFeedSetup) {
+        return path == '/feed' ? null : '/feed';
+      }
+
+      // profile == null means no row exists (new Google/OAuth user) → must complete profile.
+      if (profile == null && !isOnboarding && !isFeedSetup) {
+        return '/complete-profile';
       }
 
       if (profile?['is_disabled'] == true) {
         await auth.signOut();
-        return '/login';
+        return '/login?error=disabled';
       }
 
       final fullName = profile?['full_name'] as String?;
@@ -139,7 +165,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/login',
-        builder: (context, state) => const LoginScreen(),
+        builder: (context, state) => LoginScreen(
+          errorCode: state.uri.queryParameters['error'],
+        ),
       ),
 
       GoRoute(
@@ -172,12 +200,54 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const HomeScreen(),
       ),
 
-      GoRoute(
-        path: '/feed',
-        builder: (context, state) => const FeedScreen(),
+      // ── Persistent tab shell ─────────────────────────────────────────────
+      // Feed, Search, Chat, Notifications are kept alive in an IndexedStack.
+      // Switching between them is instant and state is preserved.
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            MainShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            navigatorKey: _feedNavKey,
+            routes: [
+              GoRoute(
+                path: '/feed',
+                builder: (context, state) => const FeedScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: _searchNavKey,
+            routes: [
+              GoRoute(
+                path: '/search',
+                builder: (context, state) => const SearchScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: _chatNavKey,
+            routes: [
+              GoRoute(
+                path: '/chats',
+                builder: (context, state) => const ChatListScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: _notifNavKey,
+            routes: [
+              GoRoute(
+                path: '/notifications',
+                builder: (context, state) => const NotificationsScreen(),
+              ),
+            ],
+          ),
+        ],
       ),
+      // ─────────────────────────────────────────────────────────────────────
 
- GoRoute(
+      GoRoute(
         path: '/marketplace',
         builder: (context, state) => const MarketplaceScreen(),
       ),
@@ -256,12 +326,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AdminLiveScreen(),
       ),
 
-      // ✅ Notifications
-      GoRoute(
-        path: '/notifications',
-        builder: (context, state) => const NotificationsScreen(),
-      ),
-
       GoRoute(
         path: '/follow-requests',
         builder: (context, state) => const FollowRequestsScreen(),
@@ -276,12 +340,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
 
-      // ✅ Chat
-      GoRoute(
-        path: '/chats',
-        builder: (context, state) => const ChatListScreen(),
-      ),
-
+      // ✅ Chat sub-screens (chat list is inside the shell branch above)
       GoRoute(
         path: '/chat/:conversationId',
         builder: (context, state) {
@@ -341,11 +400,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile/my-foods',
         builder: (context, state) => const ManagedAdsScreen(mode: ManagedAdsMode.foods),
-      ),
-
-      GoRoute(
-        path: '/search',
-        builder: (context, state) => const SearchScreen(),
       ),
 
       // ✅ Visit any profile

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#08675E"/>
+      <stop offset="100%" stop-color="#199081"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect width="64" height="64" rx="14" ry="14" fill="url(#bg)"/>
+  <!-- Circle ring behind "A" -->
+  <circle cx="31" cy="30" r="14" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="2.5"/>
+  <!-- "A" letter -->
+  <text x="32" y="44" text-anchor="middle" font-family="Arial Black, Arial, sans-serif"
+        font-size="37" font-weight="900" fill="#F5EFE5" letter-spacing="-1">A</text>
+  <!-- Orange accent dot (bottom-right) -->
+  <circle cx="47" cy="43" r="7.5" fill="#E8A74A"/>
+  <circle cx="47" cy="43" r="3" fill="#08675E"/>
+</svg>

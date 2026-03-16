@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 final notificationUnreadProvider =
@@ -16,6 +18,7 @@ class NotificationUnreadNotifier extends StateNotifier<int> {
 
   RealtimeChannel? _channel;
   Timer? _debounce;
+  Timer? _pollingTimer;
 
   String? get _uid => _db.auth.currentUser?.id;
 
@@ -25,6 +28,15 @@ class NotificationUnreadNotifier extends StateNotifier<int> {
     if (_channel != null) return;
 
     await refresh();
+
+    _pollingTimer ??=
+        Timer.periodic(const Duration(seconds: 45), (_) => refresh());
+
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      debugPrint('Notification unread realtime skipped on Android; using polling fallback');
+      return;
+    }
+
     _subscribeRealtime();
   }
 
@@ -32,6 +44,8 @@ class NotificationUnreadNotifier extends StateNotifier<int> {
   Future<void> disposeRealtime() async {
     _debounce?.cancel();
     _debounce = null;
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
 
     final ch = _channel;
     _channel = null;
@@ -47,15 +61,16 @@ class NotificationUnreadNotifier extends StateNotifier<int> {
       return;
     }
 
-    // Efficient way: just select ids and count locally.
-    // If your notifications table grows a lot, we can switch to a RPC count function.
-    final rows = await _db
-        .from('notifications')
-        .select('id')
-        .eq('recipient_id', uid)
-        .isFilter('read_at', null);
-
-    state = (rows as List).length;
+    try {
+      final rows = await _db
+          .from('notifications')
+          .select('id')
+          .eq('recipient_id', uid)
+          .isFilter('read_at', null);
+      state = (rows as List).length;
+    } catch (_) {
+      // Keep last known value if the request fails.
+    }
   }
 
   /// Optimistic helpers (use from UI when marking read)

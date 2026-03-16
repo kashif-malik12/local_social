@@ -1,20 +1,38 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../widgets/auth_field_glyph.dart';
+import '../../../widgets/brand_lockup.dart';
+import '../../../widgets/google_mark.dart';
+
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.errorCode});
+  final String? errorCode;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  static const _googleWebClientId =
+      '460437609061-1haaf4f257071s7jsa7kqb4jatartf73.apps.googleusercontent.com';
+
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _passwordFocus = FocusNode();
   bool _loading = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.errorCode == 'disabled') {
+      _error = 'This account has been disabled. Contact an administrator.';
+    }
+  }
 
   @override
   void dispose() {
@@ -36,27 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _email.text.trim(),
         password: _password.text,
       );
-      final userId = result.user?.id;
-      if (userId == null) {
-        throw 'Sign in failed';
-      }
-
-      try {
-        final profile = await client
-            .from('profiles')
-            .select('is_disabled')
-            .eq('id', userId)
-            .maybeSingle();
-
-        if (profile?['is_disabled'] == true) {
-          await client.auth.signOut();
-          throw 'This account has been disabled. Contact an administrator.';
-        }
-      } on PostgrestException {
-        // Allow login if the moderation migration has not been applied yet.
-      }
-
-      if (mounted) context.go('/feed');
+      await _finishLogin(result.user?.id);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -64,32 +62,100 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _loginWithGoogle() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      if (kIsWeb) {
+        await Supabase.instance.client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: '${Uri.base.origin}/login',
+        );
+        return;
+      }
+
+      final googleSignIn = GoogleSignIn(serverClientId: _googleWebClientId);
+      await googleSignIn.signOut();
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final accessToken = googleAuth.accessToken;
+      final idToken = googleAuth.idToken;
+
+      if (accessToken == null || idToken == null) {
+        throw 'Google sign-in did not return the required tokens.';
+      }
+
+      final result = await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      await _finishLogin(result.user?.id);
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _finishLogin(String? userId) async {
+    if (userId == null) {
+      throw 'Sign in failed';
+    }
+
+    final client = Supabase.instance.client;
+    try {
+      final profile = await client.from('profiles').select('is_disabled').eq('id', userId).maybeSingle();
+
+      if (profile?['is_disabled'] == true) {
+        await client.auth.signOut();
+        throw 'This account has been disabled. Contact an administrator.';
+      }
+    } on PostgrestException {
+      // Allow login if the moderation migration has not been applied yet.
+    }
+
+    if (mounted) context.go('/feed');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFF5F1E8), Color(0xFFE9EFE7)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        color: const Color(0xFFF3F1E8),
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final isWide = constraints.maxWidth >= 900;
+              final isWide = constraints.maxWidth >= 920;
 
               final brandPanel = Container(
-                padding: const EdgeInsets.all(32),
+                padding: EdgeInsets.fromLTRB(
+                  isWide ? 30 : 26,
+                  isWide ? 56 : 36,
+                  isWide ? 30 : 26,
+                  isWide ? 40 : 30,
+                ),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF0F766E), Color(0xFF174E4A)],
+                    colors: [Color(0xFF147A74), Color(0xFF0F6863)],
                     begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                    end: Alignment.bottomCenter,
                   ),
-                  borderRadius: BorderRadius.circular(32),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(isWide ? 22 : 28),
+                    topRight: Radius.circular(isWide ? 22 : 28),
+                    bottomLeft: Radius.circular(isWide ? 22 : 28),
+                    bottomRight: Radius.circular(isWide ? 120 : 28),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,33 +165,34 @@ class _LoginScreenState extends State<LoginScreen> {
                       width: 64,
                       height: 64,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.14),
-                        borderRadius: BorderRadius.circular(20),
+                        color: Colors.white.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(18),
                       ),
                       child: const Icon(
                         Icons.location_on_outlined,
                         color: Colors.white,
-                        size: 34,
+                        size: 32,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: isWide ? 26 : 22),
                     const Text(
-                      'Local Feed',
+                      'Welcome to',
                       style: TextStyle(
-                        fontSize: 42,
-                        height: 1,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: -1.2,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white70,
+                        letterSpacing: -0.3,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 8),
+                    const BrandLockup(height: 52),
+                    const SizedBox(height: 16),
                     Text(
                       'Neighborhood updates, marketplace deals, gigs, food ads, and local conversations in one place.',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         height: 1.5,
-                        color: Colors.white.withOpacity(0.88),
+                        color: Colors.white.withOpacity(0.8),
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -145,17 +212,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
               final loginCard = Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 440),
+                  constraints: const BoxConstraints(maxWidth: 420),
                   child: Container(
-                    padding: const EdgeInsets.all(28),
+                    padding: const EdgeInsets.fromLTRB(26, 26, 26, 24),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: const Color(0xFFE6DDCE)),
+                      color: Colors.white.withOpacity(0.96),
+                      borderRadius: BorderRadius.circular(26),
+                      border: Border.all(color: const Color(0xFFF0E8DA)),
                       boxShadow: const [
                         BoxShadow(
-                          color: Color(0x14000000),
-                          blurRadius: 24,
+                          color: Color(0x140F2B24),
+                          blurRadius: 28,
                           offset: Offset(0, 12),
                         ),
                       ],
@@ -167,6 +234,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Text(
                           'Welcome back',
                           style: theme.textTheme.headlineSmall?.copyWith(
+                            color: const Color(0xFF202124),
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -174,39 +242,40 @@ class _LoginScreenState extends State<LoginScreen> {
                         Text(
                           'Sign in to continue to your local network.',
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                            color: const Color(0xFF6C6C6C),
                           ),
                         ),
                         const SizedBox(height: 22),
-                        TextField(
+                        _buildField(
                           controller: _email,
+                          hintText: 'Email',
+                          prefix: const AuthFieldGlyph(kind: AuthFieldGlyphKind.email),
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
                           onSubmitted: (_) => _passwordFocus.requestFocus(),
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            prefixIcon: Icon(Icons.mail_outline),
-                          ),
                         ),
                         const SizedBox(height: 12),
-                        TextField(
+                        _buildField(
                           controller: _password,
+                          hintText: 'Password',
+                          prefix: const AuthFieldGlyph(kind: AuthFieldGlyphKind.password),
                           focusNode: _passwordFocus,
                           obscureText: true,
                           textInputAction: TextInputAction.done,
                           onSubmitted: (_) {
                             if (!_loading) _login();
                           },
-                          decoration: const InputDecoration(
-                            labelText: 'Password',
-                            prefixIcon: Icon(Icons.lock_outline),
-                          ),
                         ),
                         const SizedBox(height: 8),
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
                             onPressed: () => context.go('/forgot-password'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF18847A),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
                             child: const Text('Forgot password?'),
                           ),
                         ),
@@ -223,6 +292,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: double.infinity,
                           child: FilledButton(
                             onPressed: _loading ? null : _login,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF147A74),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
                             child: Text(_loading ? 'Signing in...' : 'Sign in'),
                           ),
                         ),
@@ -230,7 +307,41 @@ class _LoginScreenState extends State<LoginScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton(
+                            onPressed: _loading ? null : _loginWithGoogle,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF202124),
+                              backgroundColor: Colors.white,
+                              side: const BorderSide(color: Color(0xFF9AA0A6), width: 1.2),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                GoogleMark(size: 22),
+                                SizedBox(width: 10),
+                                Text('Continue with Google'),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
                             onPressed: () => context.go('/register'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF18847A),
+                              backgroundColor: Colors.white,
+                              side: const BorderSide(color: Color(0xFFD8E0DD)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
                             child: const Text('Create an account'),
                           ),
                         ),
@@ -242,16 +353,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
               if (isWide) {
                 return Padding(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(18),
                   child: Row(
                     children: [
                       Expanded(
-                        flex: 6,
+                        flex: 11,
                         child: brandPanel,
                       ),
-                      const SizedBox(width: 24),
+                      const SizedBox(width: 22),
                       Expanded(
-                        flex: 5,
+                        flex: 10,
                         child: loginCard,
                       ),
                     ],
@@ -263,12 +374,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
+                    loginCard,
+                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: brandPanel,
                     ),
-                    const SizedBox(height: 16),
-                    loginCard,
                   ],
                 ),
               );
@@ -292,6 +403,52 @@ class _LoginScreenState extends State<LoginScreen> {
         style: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField({
+    required TextEditingController controller,
+    required String hintText,
+    required Widget prefix,
+    TextInputType? keyboardType,
+    TextInputAction? textInputAction,
+    FocusNode? focusNode,
+    bool obscureText = false,
+    ValueChanged<String>? onSubmitted,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      focusNode: focusNode,
+      obscureText: obscureText,
+      onSubmitted: onSubmitted,
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: const TextStyle(
+          color: Color(0xFF6E6E6E),
+          fontWeight: FontWeight.w500,
+        ),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.all(14),
+          child: prefix,
+        ),
+        filled: true,
+        fillColor: const Color(0xFFFFFCF7),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFD3DBD7)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFD3DBD7)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFF147A74), width: 1.4),
         ),
       ),
     );

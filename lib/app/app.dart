@@ -26,13 +26,18 @@ class _AppState extends ConsumerState<App> {
   void initState() {
     super.initState();
 
-    // If app restarts while already logged in, init immediately
+    // If app restarts while already logged in, mark as initialized immediately
+    // so the auth listener (which fires initialSession) doesn't also call init().
+    // The actual heavy work is deferred to after the first frame.
     if (Supabase.instance.client.auth.currentUser != null) {
-      unreadBadgeController.init();
-      ref.read(notificationUnreadProvider.notifier).init();
-      PresenceService.instance.start();
       _badgeInitialized = true;
       _notificationBadgeInitialized = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unreadBadgeController.init();
+        ref.read(notificationUnreadProvider.notifier).init();
+        PresenceService.instance.start();
+      });
     }
 
     // Listen for login/logout and init/dispose badge controller

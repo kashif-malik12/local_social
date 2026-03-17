@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math' as math;
 
+import '../core/localization/app_localizations.dart';
 import '../core/service_categories.dart';
 import '../models/post_model.dart';
 import '../services/mention_service.dart';
@@ -53,8 +54,8 @@ class _GigsScreenState extends State<GigsScreen> {
       p.postType == 'service_offer' || p.postType == 'service_request';
 
   String _typeLabel(String? postType) {
-    if (postType == 'service_offer') return 'Offering';
-    if (postType == 'service_request') return 'Requesting';
+    if (postType == 'service_offer') return context.l10n.tr('offering');
+    if (postType == 'service_request') return context.l10n.tr('requesting');
     return '';
   }
 
@@ -192,16 +193,18 @@ class _GigsScreenState extends State<GigsScreen> {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
       appBar: GlobalAppBar(
-        title: 'Gigs',
+        title: l10n.tr('gigs'),
         showBackIfPossible: true,
         homeRoute: '/feed',
       ),
@@ -209,7 +212,7 @@ class _GigsScreenState extends State<GigsScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/create-post'),
         icon: const Icon(Icons.add),
-        label: const Text('Post a Service'),
+        label: Text(l10n.tr('post_a_service')),
       ),
       body: Column(
         children: [
@@ -219,7 +222,7 @@ class _GigsScreenState extends State<GigsScreen> {
               controller: _searchCtrl,
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText: 'Search services, category, provider...',
+                hintText: l10n.tr('search_services_category_provider'),
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _search.isEmpty
                     ? null
@@ -243,16 +246,16 @@ class _GigsScreenState extends State<GigsScreen> {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: Row(
               children: [
-                const Text('Category:'),
+                Text(l10n.tr('category_label')),
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButton<String>(
                     value: _selectedCategory,
                     isExpanded: true,
                     items: [
-                      const DropdownMenuItem(
+                      DropdownMenuItem(
                         value: 'all',
-                        child: Text('All categories'),
+                        child: Text(l10n.tr('all_categories')),
                       ),
                       ...serviceMainCategories.map(
                         (c) => DropdownMenuItem(
@@ -275,21 +278,21 @@ class _GigsScreenState extends State<GigsScreen> {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: Row(
               children: [
-                const Text('Type:'),
+                Text(l10n.tr('type_label')),
                 const SizedBox(width: 42),
                 Expanded(
                   child: DropdownButton<String>(
                     value: _selectedType,
                     isExpanded: true,
-                    items: const [
-                      DropdownMenuItem(value: 'all', child: Text('All types')),
+                    items: [
+                      DropdownMenuItem(value: 'all', child: Text(l10n.tr('all_types'))),
                       DropdownMenuItem(
                         value: 'service_offer',
-                        child: Text('Offering'),
+                        child: Text(l10n.tr('offering')),
                       ),
                       DropdownMenuItem(
                         value: 'service_request',
-                        child: Text('Requesting'),
+                        child: Text(l10n.tr('requesting')),
                       ),
                     ],
                     onChanged: (v) {
@@ -306,17 +309,17 @@ class _GigsScreenState extends State<GigsScreen> {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: Row(
               children: [
-                const Text('Sort:'),
+                Text(l10n.tr('sort_label')),
                 const SizedBox(width: 40),
                 Expanded(
                   child: DropdownButton<String>(
                     value: _sortBy,
                     isExpanded: true,
-                    items: const [
-                      DropdownMenuItem(value: 'date_desc', child: Text('Newest first')),
-                      DropdownMenuItem(value: 'date_asc', child: Text('Oldest first')),
-                      DropdownMenuItem(value: 'price_asc', child: Text('Price: low to high')),
-                      DropdownMenuItem(value: 'price_desc', child: Text('Price: high to low')),
+                    items: [
+                      DropdownMenuItem(value: 'date_desc', child: Text(l10n.tr('newest_first'))),
+                      DropdownMenuItem(value: 'date_asc', child: Text(l10n.tr('oldest_first'))),
+                      DropdownMenuItem(value: 'price_asc', child: Text(l10n.tr('price_low_to_high'))),
+                      DropdownMenuItem(value: 'price_desc', child: Text(l10n.tr('price_high_to_low'))),
                     ],
                     onChanged: (v) {
                       if (v == null) return;
@@ -332,16 +335,16 @@ class _GigsScreenState extends State<GigsScreen> {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: Row(
               children: [
-                const Text('Price:'),
+                Text('${l10n.tr('price')}:'),
                 const SizedBox(width: 34),
                 Expanded(
                   child: DropdownButton<String>(
                     value: _pricingFilter,
                     isExpanded: true,
-                    items: const [
-                      DropdownMenuItem(value: 'all', child: Text('All')),
-                      DropdownMenuItem(value: 'priced', child: Text('With price')),
-                      DropdownMenuItem(value: 'unpriced', child: Text('Without price')),
+                    items: [
+                      DropdownMenuItem(value: 'all', child: Text(l10n.tr('all'))),
+                      DropdownMenuItem(value: 'priced', child: Text(l10n.tr('with_price'))),
+                      DropdownMenuItem(value: 'unpriced', child: Text(l10n.tr('without_price'))),
                     ],
                     onChanged: (v) {
                       if (v == null) return;
@@ -358,9 +361,9 @@ class _GigsScreenState extends State<GigsScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? Center(child: Text('Error: $_error'))
+                    ? Center(child: Text(l10n.tr('error_with_detail', args: {'error': '$_error'})))
                     : _posts.isEmpty
-                        ? const Center(child: Text('No service posts found'))
+                        ? Center(child: Text(l10n.tr('no_service_posts_found')))
                         : RefreshIndicator(
                             onRefresh: _load,
                             child: LayoutBuilder(
@@ -388,8 +391,8 @@ class _GigsScreenState extends State<GigsScreen> {
                                 final priceText = p.marketPrice != null
                                     ? '€${p.marketPrice!.toStringAsFixed(2)}'
                                     : (p.postType == 'service_request'
-                                        ? 'Budget open'
-                                        : 'Rate on request');
+                                        ? l10n.tr('budget_open')
+                                        : l10n.tr('rate_on_request'));
 
                                 return InkWell(
                                   borderRadius: BorderRadius.circular(12),
@@ -516,7 +519,7 @@ class _GigsScreenState extends State<GigsScreen> {
                                                     Icons.local_offer_outlined,
                                                     size: 16,
                                                   ),
-                                                  label: const Text('Send offer'),
+                                                  label: Text(l10n.tr('send_offer')),
                                                 ),
                                               ),
                                             ],

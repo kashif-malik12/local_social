@@ -48,7 +48,7 @@ class _PostMediaViewState extends State<PostMediaView> {
       child: Container(
         width: width ?? double.infinity,
         constraints: BoxConstraints(maxHeight: widget.maxHeight),
-        color: Colors.black.withOpacity(0.04),
+        color: Colors.black.withValues(alpha: 0.04),
         child: Image.network(
           url,
           width: width ?? double.infinity,

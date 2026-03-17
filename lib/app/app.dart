@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/chat_singletons.dart';
+import '../core/localization/app_locale_controller.dart';
+import '../core/localization/app_localizations.dart';
 import '../features/notifications/providers/notification_unread_provider.dart';
 import '../services/presence_service.dart';
 import 'router.dart' show appRouterNavigatorKey, appRouterProvider;
@@ -34,6 +37,7 @@ class _AppState extends ConsumerState<App> {
       _notificationBadgeInitialized = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        ref.read(appLocaleProvider.notifier).refreshFromProfile();
         unreadBadgeController.init();
         ref.read(notificationUnreadProvider.notifier).init();
         PresenceService.instance.start();
@@ -55,6 +59,7 @@ class _AppState extends ConsumerState<App> {
       if (session != null) {
         // logged in
         PresenceService.instance.start();
+        await ref.read(appLocaleProvider.notifier).refreshFromProfile();
         if (!_badgeInitialized) {
           await unreadBadgeController.init();
           _badgeInitialized = true;
@@ -72,6 +77,7 @@ class _AppState extends ConsumerState<App> {
       } else {
         // logged out
         PresenceService.instance.stop();
+        ref.read(appLocaleProvider.notifier).reset();
         if (_badgeInitialized) {
           unreadBadgeController.dispose();
           _badgeInitialized = false;
@@ -98,6 +104,7 @@ class _AppState extends ConsumerState<App> {
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(appRouterProvider);
+    final locale = ref.watch(appLocaleProvider);
     final colorScheme = ColorScheme.fromSeed(
       seedColor: const Color(0xFF0F766E),
       primary: const Color(0xFF0F766E),
@@ -130,7 +137,7 @@ class _AppState extends ConsumerState<App> {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: const Color(0xFFF0E6D5),
-        selectedColor: const Color(0xFF0F766E).withOpacity(0.16),
+        selectedColor: const Color(0xFF0F766E).withValues(alpha: 0.16),
         disabledColor: const Color(0xFFE7E0D2),
         side: BorderSide.none,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -180,6 +187,14 @@ class _AppState extends ConsumerState<App> {
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: baseTheme,
+      locale: locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
     );
   }
 }

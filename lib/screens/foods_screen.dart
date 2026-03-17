@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math' as math;
 
+import '../core/localization/app_localizations.dart';
 import '../core/food_categories.dart';
 import '../models/post_model.dart';
 import '../services/mention_service.dart';
@@ -151,16 +152,18 @@ class _FoodsScreenState extends State<FoodsScreen> {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: const GlobalAppBar(
-        title: 'Food Ads',
+      appBar: GlobalAppBar(
+        title: l10n.tr('food_ads'),
         showBackIfPossible: true,
         homeRoute: '/feed',
       ),
@@ -172,7 +175,7 @@ class _FoodsScreenState extends State<FoodsScreen> {
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
-                hintText: 'Search foods, category, restaurant...',
+                hintText: l10n.tr('search_foods_category_restaurant'),
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _search.isEmpty
                     ? null
@@ -197,7 +200,7 @@ class _FoodsScreenState extends State<FoodsScreen> {
             child: DropdownButtonFormField<String>(
               initialValue: _selectedCategory,
               items: [
-                const DropdownMenuItem(value: 'all', child: Text('All food categories')),
+                DropdownMenuItem(value: 'all', child: Text(l10n.tr('all_food_categories'))),
                 ...foodMainCategories.map(
                   (c) => DropdownMenuItem(value: c, child: Text(foodCategoryLabel(c))),
                 ),
@@ -207,9 +210,9 @@ class _FoodsScreenState extends State<FoodsScreen> {
                 setState(() => _selectedCategory = v);
                 _load();
               },
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Food category',
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: l10n.tr('food_category'),
               ),
             ),
           ),
@@ -217,20 +220,20 @@ class _FoodsScreenState extends State<FoodsScreen> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: DropdownButtonFormField<String>(
               initialValue: _sortBy,
-              items: const [
-                DropdownMenuItem(value: 'date_desc', child: Text('Newest first')),
-                DropdownMenuItem(value: 'date_asc', child: Text('Oldest first')),
-                DropdownMenuItem(value: 'price_asc', child: Text('Price: low to high')),
-                DropdownMenuItem(value: 'price_desc', child: Text('Price: high to low')),
+              items: [
+                DropdownMenuItem(value: 'date_desc', child: Text(l10n.tr('newest_first'))),
+                DropdownMenuItem(value: 'date_asc', child: Text(l10n.tr('oldest_first'))),
+                DropdownMenuItem(value: 'price_asc', child: Text(l10n.tr('price_low_to_high'))),
+                DropdownMenuItem(value: 'price_desc', child: Text(l10n.tr('price_high_to_low'))),
               ],
               onChanged: (v) {
                 if (v == null) return;
                 setState(() => _sortBy = v);
                 _load();
               },
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Sort by',
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: l10n.tr('sort_by'),
               ),
             ),
           ),
@@ -240,9 +243,9 @@ class _FoodsScreenState extends State<FoodsScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? Center(child: Text('Error: $_error'))
+                    ? Center(child: Text(l10n.tr('error_with_detail', args: {'error': '$_error'})))
                     : _posts.isEmpty
-                        ? const Center(child: Text('No food ads found'))
+                        ? Center(child: Text(l10n.tr('no_food_ads_found')))
                         : LayoutBuilder(
                             builder: (context, constraints) {
                               return GridView.builder(
@@ -264,7 +267,7 @@ class _FoodsScreenState extends State<FoodsScreen> {
                                   : _plainListingText(p.content);
                               final price = p.marketPrice != null
                                   ? '€${p.marketPrice!.toStringAsFixed(2)}'
-                                  : 'Price on request';
+                                  : l10n.tr('price_on_request');
 
                               return InkWell(
                                 borderRadius: BorderRadius.circular(12),

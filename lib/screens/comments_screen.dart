@@ -95,7 +95,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.92),
+          color: Colors.white.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: const Color(0xFFE6DDCE)),
         ),
@@ -188,7 +188,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.92),
+          color: Colors.white.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: const Color(0xFFE6DDCE)),
         ),
@@ -198,7 +198,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: const Color(0xFF0F766E).withOpacity(0.1),
+                color: const Color(0xFF0F766E).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Icon(
@@ -390,7 +390,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF0F766E).withOpacity(0.08),
+                            color: const Color(0xFF0F766E).withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: const Text(
@@ -551,7 +551,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.94),
+                        color: Colors.white.withValues(alpha: 0.94),
                         borderRadius: BorderRadius.circular(24),
                         border: Border.all(color: const Color(0xFFE6DDCE)),
                         boxShadow: const [

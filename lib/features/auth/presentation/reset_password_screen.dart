@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/localization/app_localizations.dart';
+
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
 
@@ -30,12 +32,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final confirm = _confirmPassword.text;
 
     if (password.length < 6) {
-      setState(() => _error = 'Password must be at least 6 characters');
+      setState(() => _error = context.l10n.tr('password_min_length'));
       return;
     }
 
     if (password != confirm) {
-      setState(() => _error = 'Passwords do not match');
+      setState(() => _error = context.l10n.tr('passwords_do_not_match'));
       return;
     }
 
@@ -51,20 +53,22 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password updated successfully')),
+        SnackBar(content: Text(context.l10n.tr('password_updated_successfully'))),
       );
       context.go('/feed');
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
     return Scaffold(
       body: Container(
@@ -84,7 +88,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(28),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.94),
+                    color: Colors.white.withValues(alpha: 0.94),
                     borderRadius: BorderRadius.circular(28),
                     border: Border.all(color: const Color(0xFFE6DDCE)),
                     boxShadow: const [
@@ -100,14 +104,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Set a new password',
+                        l10n.tr('set_new_password'),
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Choose a secure password for your account.',
+                        l10n.tr('set_new_password_intro'),
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -118,8 +122,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         obscureText: true,
                         textInputAction: TextInputAction.next,
                         onSubmitted: (_) => _confirmPasswordFocus.requestFocus(),
-                        decoration: const InputDecoration(
-                          labelText: 'New password',
+                        decoration: InputDecoration(
+                          labelText: l10n.tr('new_password'),
                           prefixIcon: Icon(Icons.lock_outline),
                         ),
                       ),
@@ -132,8 +136,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         onSubmitted: (_) {
                           if (!_loading) _savePassword();
                         },
-                        decoration: const InputDecoration(
-                          labelText: 'Confirm password',
+                        decoration: InputDecoration(
+                          labelText: l10n.tr('confirm_password'),
                           prefixIcon: Icon(Icons.lock_reset_outlined),
                         ),
                       ),
@@ -150,7 +154,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         width: double.infinity,
                         child: FilledButton(
                           onPressed: _loading ? null : _savePassword,
-                          child: Text(_loading ? 'Saving...' : 'Update password'),
+                          child: Text(
+                            _loading ? l10n.tr('saving') : l10n.tr('update_password'),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -158,7 +164,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         width: double.infinity,
                         child: OutlinedButton(
                           onPressed: () => context.go('/login'),
-                          child: const Text('Back to login'),
+                          child: Text(l10n.tr('back_to_login')),
                         ),
                       ),
                     ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/localization/app_localizations.dart';
 import '../../../services/app_settings_service.dart';
 import '../../../widgets/global_app_bar.dart';
 import '../../../widgets/global_bottom_nav.dart';
@@ -24,102 +25,6 @@ class ProfileSettingsScreen extends StatefulWidget {
 }
 
 class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
-  static const List<_SettingItem> _inAppItems = [
-    _SettingItem(
-      keyName: AppSettingsService.inAppChatMessagesKey,
-      title: 'Chat messages',
-      subtitle: 'Show live in-app alerts for direct chat messages.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.inAppOfferMessagesKey,
-      title: 'Offer messages',
-      subtitle: 'Show notifications for listing conversation messages.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.inAppOfferUpdatesKey,
-      title: 'Offer updates',
-      subtitle: 'Show sent, accepted, and rejected offer updates.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.inAppCommentsKey,
-      title: 'Comments on my posts',
-      subtitle: 'Notify you when someone comments on your content.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.inAppRepliesKey,
-      title: 'Replies to my comments',
-      subtitle: 'Notify you when someone replies to your comment or question.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.inAppMentionsKey,
-      title: 'Mentions',
-      subtitle: 'Notify you when someone tags you in a post or comment.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.inAppFollowRequestsKey,
-      title: 'Follow requests',
-      subtitle: 'Notify you when someone requests to follow you.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.inAppNewFollowersKey,
-      title: 'New followers',
-      subtitle: 'Notify you when someone follows you or accepts your request.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.inAppAdminUpdatesKey,
-      title: 'Admin and safety updates',
-      subtitle: 'Show account, moderation, and safety-related updates.',
-    ),
-  ];
-
-  static const List<_SettingItem> _pushItems = [
-    _SettingItem(
-      keyName: AppSettingsService.pushChatMessagesKey,
-      title: 'Push chat messages',
-      subtitle: 'Reserved for future mobile and web push support.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.pushOfferMessagesKey,
-      title: 'Push offer messages',
-      subtitle: 'Reserved for future push notifications on offer chats.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.pushOfferUpdatesKey,
-      title: 'Push offer updates',
-      subtitle: 'Reserved for offer sent, accepted, and rejected pushes.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.pushCommentsKey,
-      title: 'Push comments',
-      subtitle: 'Reserved for future push notifications on comments.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.pushRepliesKey,
-      title: 'Push replies',
-      subtitle: 'Reserved for future push notifications on replies.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.pushMentionsKey,
-      title: 'Push mentions',
-      subtitle: 'Reserved for future push notifications on mentions.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.pushFollowRequestsKey,
-      title: 'Push follow requests',
-      subtitle: 'Reserved for future push notifications on follow requests.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.pushNewFollowersKey,
-      title: 'Push new followers',
-      subtitle: 'Reserved for future push notifications on follows.',
-    ),
-    _SettingItem(
-      keyName: AppSettingsService.pushAdminUpdatesKey,
-      title: 'Push admin and safety updates',
-      subtitle: 'Reserved for important admin and safety pushes.',
-    ),
-  ];
-
   late AppSettings _settings;
   bool _saving = false;
 
@@ -144,7 +49,11 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       if (!mounted) return;
       setState(() => _settings = previous);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save setting: $e')),
+        SnackBar(
+          content: Text(
+            context.l10n.tr('failed_to_save_setting', args: {'error': '$e'}),
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -195,9 +104,10 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: const GlobalAppBar(
-        title: 'Profile settings',
+      appBar: GlobalAppBar(
+        title: l10n.tr('profile_settings'),
         showBackIfPossible: true,
         homeRoute: '/profile',
       ),
@@ -210,27 +120,119 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             children: [
               _buildSettingsCard(
                 context: context,
-                title: 'Playback',
-                subtitle: 'Control how videos behave across the app.',
+                title: l10n.tr('playback'),
+                subtitle: l10n.tr('playback_subtitle'),
                 items: [
-                  const _SettingItem(
+                  _SettingItem(
                     keyName: AppSettingsService.videoAutoplayKey,
-                    title: 'Video auto play',
-                    subtitle: 'Videos start playing automatically when enabled.',
+                    title: l10n.tr('video_auto_play'),
+                    subtitle: l10n.tr('video_auto_play_subtitle'),
                   ),
                 ],
               ),
               _buildSettingsCard(
                 context: context,
-                title: 'In-app notifications',
-                subtitle: 'Choose which updates should appear inside the app.',
-                items: _inAppItems,
+                title: l10n.tr('in_app_notifications'),
+                subtitle: l10n.tr('in_app_notifications_subtitle'),
+                items: [
+                  _SettingItem(
+                    keyName: AppSettingsService.inAppChatMessagesKey,
+                    title: l10n.tr('chat_messages'),
+                    subtitle: l10n.tr('chat_messages_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.inAppOfferMessagesKey,
+                    title: l10n.tr('offer_messages'),
+                    subtitle: l10n.tr('offer_messages_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.inAppOfferUpdatesKey,
+                    title: l10n.tr('offer_updates'),
+                    subtitle: l10n.tr('offer_updates_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.inAppCommentsKey,
+                    title: l10n.tr('comments_on_my_posts'),
+                    subtitle: l10n.tr('comments_on_my_posts_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.inAppRepliesKey,
+                    title: l10n.tr('replies_to_my_comments'),
+                    subtitle: l10n.tr('replies_to_my_comments_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.inAppMentionsKey,
+                    title: l10n.tr('mentions'),
+                    subtitle: l10n.tr('mentions_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.inAppFollowRequestsKey,
+                    title: l10n.tr('follow_requests'),
+                    subtitle: l10n.tr('follow_requests_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.inAppNewFollowersKey,
+                    title: l10n.tr('new_followers'),
+                    subtitle: l10n.tr('new_followers_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.inAppAdminUpdatesKey,
+                    title: l10n.tr('admin_and_safety_updates'),
+                    subtitle: l10n.tr('admin_and_safety_updates_subtitle'),
+                  ),
+                ],
               ),
               _buildSettingsCard(
                 context: context,
-                title: 'Push notifications',
-                subtitle: 'Saved now for future mobile and web push support.',
-                items: _pushItems,
+                title: l10n.tr('push_notifications'),
+                subtitle: l10n.tr('push_notifications_subtitle'),
+                items: [
+                  _SettingItem(
+                    keyName: AppSettingsService.pushChatMessagesKey,
+                    title: l10n.tr('push_chat_messages'),
+                    subtitle: l10n.tr('push_chat_messages_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.pushOfferMessagesKey,
+                    title: l10n.tr('push_offer_messages'),
+                    subtitle: l10n.tr('push_offer_messages_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.pushOfferUpdatesKey,
+                    title: l10n.tr('push_offer_updates'),
+                    subtitle: l10n.tr('push_offer_updates_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.pushCommentsKey,
+                    title: l10n.tr('push_comments'),
+                    subtitle: l10n.tr('push_comments_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.pushRepliesKey,
+                    title: l10n.tr('push_replies'),
+                    subtitle: l10n.tr('push_replies_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.pushMentionsKey,
+                    title: l10n.tr('push_mentions'),
+                    subtitle: l10n.tr('push_mentions_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.pushFollowRequestsKey,
+                    title: l10n.tr('push_follow_requests'),
+                    subtitle: l10n.tr('push_follow_requests_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.pushNewFollowersKey,
+                    title: l10n.tr('push_new_followers'),
+                    subtitle: l10n.tr('push_new_followers_subtitle'),
+                  ),
+                  _SettingItem(
+                    keyName: AppSettingsService.pushAdminUpdatesKey,
+                    title: l10n.tr('push_admin_updates'),
+                    subtitle: l10n.tr('push_admin_updates_subtitle'),
+                  ),
+                ],
               ),
             ],
           ),

@@ -1,8 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 final notificationUnreadProvider =
@@ -31,11 +29,6 @@ class NotificationUnreadNotifier extends StateNotifier<int> {
 
     _pollingTimer ??=
         Timer.periodic(const Duration(seconds: 45), (_) => refresh());
-
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      debugPrint('Notification unread realtime skipped on Android; using polling fallback');
-      return;
-    }
 
     _subscribeRealtime();
   }

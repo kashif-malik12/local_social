@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../core/localization/app_localizations.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -24,7 +27,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _sendResetLink() async {
     final email = _email.text.trim();
     if (email.isEmpty) {
-      setState(() => _error = 'Enter your email address');
+      setState(() => _error = context.l10n.tr('enter_email_address'));
       return;
     }
 
@@ -35,9 +38,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
 
     try {
-      final redirectTo = Uri.base
-          .replace(path: '/reset-password', query: null, fragment: null)
-          .toString();
+      final redirectTo = kIsWeb
+          ? Uri.base.replace(path: '/reset-password', query: null, fragment: null).toString()
+          : 'com.allonssy.app://login-callback';
       await Supabase.instance.client.auth.resetPasswordForEmail(
         email,
         redirectTo: redirectTo,
@@ -50,7 +53,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = 'Reset failed: $e');
+      setState(() => _error = context.l10n.tr('reset_failed', args: {'error': '$e'}));
     } finally {
       if (mounted && !_success) setState(() => _loading = false);
     }
@@ -58,6 +61,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -78,7 +82,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(28),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.94),
+                    color: Colors.white.withValues(alpha: 0.94),
                     borderRadius: BorderRadius.circular(28),
                     border: Border.all(color: const Color(0xFFE6DDCE)),
                     boxShadow: const [
@@ -100,14 +104,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             ),
                             const SizedBox(height: 24),
                             Text(
-                              'Check your email',
+                              l10n.tr('check_your_email'),
                               style: theme.textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              'If an account exists for ${_email.text}, you will receive a password reset link shortly.',
+                              l10n.tr(
+                                'reset_link_sent_if_exists',
+                                args: {'email': _email.text},
+                              ),
                               textAlign: TextAlign.center,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
@@ -117,11 +124,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             const SizedBox(height: 32),
                             SizedBox(
                               width: double.infinity,
-                              child: FilledButton(
-                                onPressed: () => context.go('/login'),
-                                child: const Text('Return to login'),
+                                child: FilledButton(
+                                  onPressed: () => context.go('/login'),
+                                  child: Text(l10n.tr('return_to_login')),
+                                ),
                               ),
-                            ),
                           ],
                         )
                       : Column(
@@ -129,14 +136,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Reset your password',
+                              l10n.tr('reset_password'),
                               style: theme.textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Enter the email address linked to your account.',
+                              l10n.tr('reset_password_intro'),
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
                               ),
@@ -150,8 +157,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               onSubmitted: (_) {
                                 if (!_loading) _sendResetLink();
                               },
-                              decoration: const InputDecoration(
-                                labelText: 'Email',
+                              decoration: InputDecoration(
+                                labelText: l10n.tr('email'),
                                 prefixIcon: Icon(Icons.mail_outline),
                               ),
                             ),
@@ -168,7 +175,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               width: double.infinity,
                               child: FilledButton(
                                 onPressed: _loading ? null : _sendResetLink,
-                                child: Text(_loading ? 'Sending...' : 'Send reset link'),
+                                child: Text(
+                                  _loading ? l10n.tr('sending') : l10n.tr('send_reset_link'),
+                                ),
                               ),
                             ),
                             const SizedBox(height: 10),
@@ -176,7 +185,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               width: double.infinity,
                               child: OutlinedButton(
                                 onPressed: _loading ? null : () => context.go('/login'),
-                                child: const Text('Cancel'),
+                                child: Text(l10n.tr('cancel')),
                               ),
                             ),
                           ],

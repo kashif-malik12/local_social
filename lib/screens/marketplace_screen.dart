@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math' as math;
 
+import '../core/localization/app_localizations.dart';
 import '../core/market_categories.dart';
 import '../models/post_model.dart';
 import '../services/mention_service.dart';
@@ -87,9 +88,9 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   String _intentLabel(String? intent) {
     switch (intent) {
       case 'buying':
-        return 'Buying';
+        return context.l10n.tr('buying');
       case 'selling':
-        return 'Selling';
+        return context.l10n.tr('selling');
       default:
         return (intent ?? '').trim();
     }
@@ -259,16 +260,18 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
       appBar: GlobalAppBar(
-        title: 'Marketplace',
+        title: l10n.tr('marketplace'),
         showBackIfPossible: true,
         homeRoute: '/feed',
       ),
@@ -276,7 +279,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/create-post'),
         icon: const Icon(Icons.add),
-        label: const Text('Sell / Buy'),
+        label: Text(l10n.tr('sell_buy')),
       ),
       body: Column(
         children: [
@@ -286,7 +289,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
               controller: _searchCtrl,
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText: 'Search products, category, seller...',
+                hintText: l10n.tr('search_products_category_seller'),
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _search.isEmpty
                     ? null
@@ -309,14 +312,14 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: _buildResponsiveDropdownRow(
-              label: 'Category:',
+              label: l10n.tr('category_label'),
               child: DropdownButton<String>(
                 value: _selectedCategory,
                 isExpanded: true,
                 items: [
-                  const DropdownMenuItem(
+                  DropdownMenuItem(
                     value: 'all',
-                    child: Text('All categories'),
+                    child: Text(l10n.tr('all_categories')),
                   ),
                   ...marketMainCategories.map(
                     (c) => DropdownMenuItem(
@@ -336,14 +339,14 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: _buildResponsiveDropdownRow(
-              label: 'Type:',
+              label: l10n.tr('type_label'),
               child: DropdownButton<String>(
                 value: _selectedIntent,
                 isExpanded: true,
-                items: const [
-                  DropdownMenuItem(value: 'all', child: Text('All types')),
-                  DropdownMenuItem(value: 'selling', child: Text('Selling')),
-                  DropdownMenuItem(value: 'buying', child: Text('Buying')),
+                items: [
+                  DropdownMenuItem(value: 'all', child: Text(l10n.tr('all_types'))),
+                  DropdownMenuItem(value: 'selling', child: Text(l10n.tr('selling'))),
+                  DropdownMenuItem(value: 'buying', child: Text(l10n.tr('buying'))),
                 ],
                 onChanged: (v) {
                   if (v == null) return;
@@ -356,15 +359,15 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: _buildResponsiveDropdownRow(
-              label: 'Sort:',
+              label: l10n.tr('sort_label'),
               child: DropdownButton<String>(
                 value: _sortBy,
                 isExpanded: true,
-                items: const [
-                  DropdownMenuItem(value: 'date_desc', child: Text('Newest first')),
-                  DropdownMenuItem(value: 'date_asc', child: Text('Oldest first')),
-                  DropdownMenuItem(value: 'price_asc', child: Text('Price: low to high')),
-                  DropdownMenuItem(value: 'price_desc', child: Text('Price: high to low')),
+                items: [
+                  DropdownMenuItem(value: 'date_desc', child: Text(l10n.tr('newest_first'))),
+                  DropdownMenuItem(value: 'date_asc', child: Text(l10n.tr('oldest_first'))),
+                  DropdownMenuItem(value: 'price_asc', child: Text(l10n.tr('price_low_to_high'))),
+                  DropdownMenuItem(value: 'price_desc', child: Text(l10n.tr('price_high_to_low'))),
                 ],
                 onChanged: (v) {
                   if (v == null) return;
@@ -379,9 +382,9 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? Center(child: Text('Error: $_error'))
+                    ? Center(child: Text(l10n.tr('error_with_detail', args: {'error': '$_error'})))
                     : _posts.isEmpty
-                        ? const Center(child: Text('No marketplace posts found'))
+                        ? Center(child: Text(l10n.tr('no_marketplace_posts_found')))
                         : RefreshIndicator(
                             onRefresh: _load,
                             child: LayoutBuilder(
@@ -410,8 +413,8 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                                 final priceText = effectivePrice != null
                                     ? 'EUR ${effectivePrice.toStringAsFixed(2)}'
                                     : (intent == 'buying'
-                                        ? 'Looking to buy'
-                                        : 'Price on request');
+                                        ? l10n.tr('looking_to_buy')
+                                        : l10n.tr('price_on_request'));
 
                                 return InkWell(
                                   borderRadius: BorderRadius.circular(12),
@@ -538,7 +541,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                                                     Icons.local_offer_outlined,
                                                     size: 16,
                                                   ),
-                                                  label: const Text('Send offer'),
+                                                  label: Text(l10n.tr('send_offer')),
                                                 ),
                                               ),
                                             ],

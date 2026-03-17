@@ -1,74 +1,65 @@
-import 'dart:io';
-
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 LocalStorage createReleaseAuthStorage(String persistSessionKey) =>
-    _FileLocalStorage(persistSessionKey: persistSessionKey);
+    _PrefsLocalStorage(persistSessionKey: persistSessionKey);
 
-GotrueAsyncStorage createReleasePkceStorage() => const _FileGotrueAsyncStorage();
+GotrueAsyncStorage createReleasePkceStorage() =>
+    const _PrefsGotrueAsyncStorage();
 
-class _FileLocalStorage extends LocalStorage {
-  _FileLocalStorage({required this.persistSessionKey});
+class _PrefsLocalStorage extends LocalStorage {
+  _PrefsLocalStorage({required this.persistSessionKey});
 
   final String persistSessionKey;
-  late final File _file = File('${Directory.systemTemp.path}\\$persistSessionKey.json');
 
   @override
-  Future<void> initialize() async {
-    if (!await _file.parent.exists()) {
-      await _file.parent.create(recursive: true);
-    }
-  }
+  Future<void> initialize() async {}
 
   @override
   Future<String?> accessToken() async {
-    if (!await _file.exists()) return null;
-    return _file.readAsString();
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(persistSessionKey);
   }
 
   @override
-  Future<bool> hasAccessToken() async => _file.exists();
+  Future<bool> hasAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.containsKey(persistSessionKey);
+  }
 
   @override
   Future<void> persistSession(String persistSessionString) async {
-    await initialize();
-    await _file.writeAsString(persistSessionString, flush: true);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(persistSessionKey, persistSessionString);
   }
 
   @override
   Future<void> removePersistedSession() async {
-    if (await _file.exists()) {
-      await _file.delete();
-    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(persistSessionKey);
   }
 }
 
-class _FileGotrueAsyncStorage extends GotrueAsyncStorage {
-  const _FileGotrueAsyncStorage();
+class _PrefsGotrueAsyncStorage extends GotrueAsyncStorage {
+  const _PrefsGotrueAsyncStorage();
 
-  File _fileForKey(String key) => File('${Directory.systemTemp.path}\\gotrue_$key.txt');
+  static const _prefix = 'gotrue_';
 
   @override
   Future<String?> getItem({required String key}) async {
-    final file = _fileForKey(key);
-    if (!await file.exists()) return null;
-    return file.readAsString();
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('$_prefix$key');
   }
 
   @override
   Future<void> removeItem({required String key}) async {
-    final file = _fileForKey(key);
-    if (await file.exists()) {
-      await file.delete();
-    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('$_prefix$key');
   }
 
   @override
   Future<void> setItem({required String key, required String value}) async {
-    final file = _fileForKey(key);
-    if (!await file.parent.exists()) {
-      await file.parent.create(recursive: true);
-    }
-    await file.writeAsString(value, flush: true);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_prefix$key', value);
   }
 }

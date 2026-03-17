@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/localization/app_localizations.dart';
 import '../features/notifications/providers/notification_unread_provider.dart';
 import '../models/notification_model.dart';
 import '../services/notification_service.dart';
@@ -128,7 +129,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       if (!mounted) return;
       setState(() => _loadingMore = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Load more failed: $e')),
+        SnackBar(
+          content: Text(context.l10n.tr('load_more_failed', args: {'error': '$e'})),
+        ),
       );
     }
   }
@@ -161,7 +164,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed: $e')),
+        SnackBar(
+          content: Text(context.l10n.tr('failed_generic', args: {'error': '$e'})),
+        ),
       );
     }
   }
@@ -293,7 +298,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Nothing to open')),
+      SnackBar(content: Text(context.l10n.tr('nothing_to_open'))),
     );
   }
 
@@ -325,13 +330,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Request accepted')),
+        SnackBar(content: Text(context.l10n.tr('request_accepted'))),
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _actingIds.remove(n.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Accept failed: $e')),
+        SnackBar(
+          content: Text(context.l10n.tr('accept_failed', args: {'error': '$e'})),
+        ),
       );
     }
   }
@@ -364,58 +371,61 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Request declined')),
+        SnackBar(content: Text(context.l10n.tr('request_declined'))),
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _actingIds.remove(n.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Decline failed: $e')),
+        SnackBar(
+          content: Text(context.l10n.tr('decline_failed', args: {'error': '$e'})),
+        ),
       );
     }
   }
 
   String _titleFor(AppNotification n) {
+    final l10n = context.l10n;
     final name = _displayActorName(n);
-    const anonymous = 'Someone';
+    final anonymous = l10n.tr('someone');
 
     switch (n.type) {
       case 'follow_request':
-        return '$name requested to follow you';
+        return l10n.tr('notif_follow_request', args: {'name': name});
       case 'follow_accepted':
-        return '$name accepted your follow request';
+        return l10n.tr('notif_follow_accepted', args: {'name': name});
       case 'follow':
-        return '$name started following you';
+        return l10n.tr('notif_follow', args: {'name': name});
       case 'like':
-        return '$name liked your post';
+        return l10n.tr('notif_like', args: {'name': name});
       case 'comment':
         if (_isListingNotification(n)) {
-          return '$name asked a question on your listing';
+          return l10n.tr('notif_listing_question', args: {'name': name});
         }
-        return '$name commented on your post';
+        return l10n.tr('notif_comment', args: {'name': name});
       case 'comment_like':
-        return '$name liked your comment';
+        return l10n.tr('notif_comment_like', args: {'name': name});
       case 'comment_reply':
         if (_isListingNotification(n)) {
-          return '$name replied to your question';
+          return l10n.tr('notif_listing_reply', args: {'name': name});
         }
-        return '$name replied to your comment';
+        return l10n.tr('notif_comment_reply', args: {'name': name});
       case 'share':
-        return '$name shared your post';
+        return l10n.tr('notif_share', args: {'name': name});
       case 'mention':
         return n.commentId != null && n.commentId!.isNotEmpty
-            ? '$name tagged you in a comment'
-            : '$name tagged you in a post';
+            ? l10n.tr('notif_tagged_comment', args: {'name': name})
+            : l10n.tr('notif_tagged_post', args: {'name': name});
       case 'offer_message':
-        return '$anonymous sent a message about your listing';
+        return l10n.tr('notif_offer_message', args: {'name': anonymous});
       case 'offer_sent':
-        return '$anonymous sent an offer on your listing';
+        return l10n.tr('notif_offer_sent', args: {'name': anonymous});
       case 'offer_accepted':
-        return '$anonymous accepted the offer';
+        return l10n.tr('notif_offer_accepted', args: {'name': anonymous});
       case 'offer_rejected':
-        return '$anonymous rejected the offer';
+        return l10n.tr('notif_offer_rejected', args: {'name': anonymous});
       default:
-        return '$name sent an update';
+        return l10n.tr('notif_generic_update', args: {'name': name});
     }
   }
 
@@ -428,13 +438,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   String _displayActorName(AppNotification n) {
-    final actualName = (n.actorName?.trim().isNotEmpty ?? false) ? n.actorName!.trim() : 'Someone';
+    final actualName = (n.actorName?.trim().isNotEmpty ?? false)
+        ? n.actorName!.trim()
+        : context.l10n.tr('someone');
     if (!_isListingNotification(n)) return actualName;
     if (n.type == 'comment_reply' && n.actorId != null && n.actorId == n.postOwnerId) {
       if (n.postType == 'market' || n.postType == 'food_ad' || n.postType == 'food') {
-        return 'Seller';
+        return context.l10n.tr('seller');
       }
-      return 'Author';
+      return context.l10n.tr('author');
     }
     return actualName;
   }
@@ -464,13 +476,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         color: isUnread ? const Color(0xFFEAF7F3) : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: isUnread ? const Color(0xFF0F766E).withOpacity(0.55) : const Color(0xFFE6DDCE),
+          color: isUnread ? const Color(0xFF0F766E).withValues(alpha: 0.55) : const Color(0xFFE6DDCE),
           width: isUnread ? 1.4 : 1,
         ),
         boxShadow: isUnread
             ? [
                 BoxShadow(
-                  color: const Color(0xFF0F766E).withOpacity(0.08),
+                  color: const Color(0xFF0F766E).withValues(alpha: 0.08),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 ),
@@ -540,8 +552,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                               borderRadius: BorderRadius.circular(999),
                               border: Border.all(color: const Color(0xFF8EC5B7)),
                             ),
-                            child: const Text(
-                              'Unread',
+                            child: Text(
+                              context.l10n.tr('unread'),
                               style: TextStyle(
                                 color: Color(0xFF0B5D56),
                                 fontSize: 11,
@@ -575,7 +587,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     if (isUnread && !isActionableRequest) ...[
                       const SizedBox(height: 8),
                       Text(
-                        'Tap to open',
+                        context.l10n.tr('tap_to_open'),
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -591,7 +603,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                         children: [
                           OutlinedButton(
                             onPressed: isActing ? null : () => _declineRequest(n),
-                            child: const Text('Decline'),
+                            child: Text(context.l10n.tr('decline')),
                           ),
                           FilledButton(
                             onPressed: isActing ? null : () => _acceptRequest(n),
@@ -601,7 +613,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                     height: 16,
                                     child: CircularProgressIndicator(strokeWidth: 2),
                                   )
-                                : const Text('Accept'),
+                                : Text(context.l10n.tr('accept')),
                           ),
                         ],
                       ),
@@ -623,16 +635,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final unread = _items.where((e) => e.readAt == null).length;
 
     return Scaffold(
       appBar: GlobalAppBar(
-        title: unread > 0 ? 'Notifications ($unread)' : 'Notifications',
+        title: unread > 0 ? '${l10n.tr('notifications')} ($unread)' : l10n.tr('notifications'),
         showBackIfPossible: true,
         homeRoute: '/feed',
         actions: [
           if (_items.isNotEmpty && unread > 0)
-            TextButton(onPressed: _markAllRead, child: const Text('Mark all read')),
+            TextButton(onPressed: _markAllRead, child: Text(l10n.tr('mark_all_read'))),
         ],
       ),
       bottomNavigationBar: const GlobalBottomNav(),
@@ -661,14 +674,16 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        unread > 0 ? 'Notifications ($unread)' : 'Notifications',
+                        unread > 0
+                            ? '${l10n.tr('notifications')} ($unread)'
+                            : l10n.tr('notifications'),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
                             ),
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Stay on top of follows, messages, offers, and updates.',
+                        l10n.tr('notifications_intro'),
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
@@ -695,7 +710,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(color: const Color(0xFFE6DDCE)),
                     ),
-                    child: const Center(child: Text('No notifications yet')),
+                    child: Center(child: Text(l10n.tr('no_notifications_yet'))),
                   )
                 else
                   ..._items.map(_buildNotificationCard),
@@ -707,7 +722,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                           ? const SizedBox.shrink()
                           : _loadingMore
                               ? const CircularProgressIndicator()
-                              : const Text('Scroll down to load more'),
+                              : Text(l10n.tr('scroll_down_load_more')),
                     ),
                   ),
               ],

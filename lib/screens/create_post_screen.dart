@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/food_categories.dart';
+import '../core/localization/app_localizations.dart';
 import '../core/market_categories.dart';
 import '../core/platform/local_image_provider.dart';
 import '../core/platform/platform_info.dart';
@@ -220,6 +221,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       file = XFile(result.files.first.path!);
     }
 
+    final size = await _fileLength(file);
+    if (size > MediaLimits.maxVideoBytes) {
+      if (!mounted) return;
+      _showError('Video too large. Maximum size is ${_formatMb(MediaLimits.maxVideoBytes)} MB.');
+      return;
+    }
+
     if (!mounted) return;
     setState(() {
       _mediaMode = _ComposerMediaMode.videoFile;
@@ -254,11 +262,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     ? Image(image: imageProvider, fit: BoxFit.cover)
                     : const Center(child: CircularProgressIndicator()),
               ),
-              Container(color: Colors.black.withOpacity(0.24)),
+              Container(color: Colors.black.withValues(alpha: 0.24)),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.55),
+                  color: Colors.black.withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -294,7 +302,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       final connections = await _mentionService.fetchMutualConnections();
       if (!mounted) return;
       if (connections.isEmpty) {
-        _showError('No mutual connections available to tag');
+        _showError(context.l10n.tr('no_mutual_connections'));
         return;
       }
 
@@ -302,7 +310,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         context: context,
         available: connections,
         initialSelection: _selectedMentions,
-        title: 'Tag connections',
+        title: context.l10n.tr('tag_connections'),
       );
 
       if (selected != null && mounted) {
@@ -310,7 +318,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      _showError('Tag loading failed: $e');
+      _showError(context.l10n.tr('tag_loading_failed', args: {'error': '$e'}));
     }
   }
 
@@ -320,22 +328,22 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     final marketPriceRaw = _marketPriceCtrl.text.trim();
 
     if (rawContent.isEmpty) {
-      _showError('Write something');
+      _showError(context.l10n.tr('write_something'));
       return;
     }
 
     if (_isMarketPost && _selectedMarketCategory.isEmpty) {
-      _showError('Please select a product category');
+      _showError(context.l10n.tr('select_product_category'));
       return;
     }
 
     if (_isServicePost && _selectedServiceCategory.isEmpty) {
-      _showError('Please select a service category');
+      _showError(context.l10n.tr('select_service_category'));
       return;
     }
 
     if (_isFoodAdPost && marketTitle.isEmpty) {
-      _showError('Please enter food name');
+      _showError(context.l10n.tr('enter_food_name'));
       return;
     }
 
@@ -344,18 +352,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         ((_isFoodAdPost || _isServicePost) && marketPriceRaw.isNotEmpty)) {
       marketPrice = double.tryParse(marketPriceRaw);
       if (marketPrice == null || marketPrice < 0) {
-        _showError('Please enter a valid price');
+        _showError(context.l10n.tr('enter_valid_price'));
         return;
       }
     }
 
     if (_isMarketPost && marketPriceRaw.isEmpty) {
-      _showError('Please enter product price');
+      _showError(context.l10n.tr('enter_product_price'));
       return;
     }
 
     if (_isFoodAdPost && _selectedFoodCategory.isEmpty) {
-      _showError('Please select a food category');
+      _showError(context.l10n.tr('select_food_category'));
       return;
     }
 
@@ -363,7 +371,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     if (_mediaMode == _ComposerMediaMode.youtube) {
       final rawUrl = _videoUrlCtrl.text.trim();
       if (rawUrl.isEmpty || !_isValidYoutubeUrl(rawUrl)) {
-        _showError('Please paste a valid YouTube link (youtube.com / youtu.be)');
+        _showError(context.l10n.tr('paste_valid_youtube'));
         return;
       }
       videoUrl = rawUrl;
@@ -387,21 +395,19 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Location required'),
-            content: const Text(
-              'To post on Allonssy!, please set your location in your profile.',
-            ),
+            title: Text(context.l10n.tr('location_required')),
+            content: Text(context.l10n.tr('set_location_in_profile')),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
+                child: Text(context.l10n.tr('cancel')),
               ),
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(ctx);
                   context.go('/complete-profile');
                 },
-                child: const Text('Complete Profile'),
+                child: Text(context.l10n.tr('complete_profile')),
               ),
             ],
           ),
@@ -458,7 +464,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-      _showError('Error: $e');
+      _showError(context.l10n.tr('error_with_detail', args: {'error': '$e'}));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -533,26 +539,27 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   Widget _buildMediaSection() {
+    final l10n = context.l10n;
     final photoSubtitle = 'Up to 2 photos, ${_formatMb(_maxPhotoBytes)} MB each';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Media',
+          l10n.tr('media'),
           style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 8),
         _mediaModeTile(
-          title: 'No media',
-          subtitle: 'Text only',
+          title: l10n.tr('no_media'),
+          subtitle: l10n.tr('text_only'),
           icon: Icons.notes_outlined,
           mode: _ComposerMediaMode.none,
           enabled: true,
         ),
         const SizedBox(height: 8),
         _mediaModeTile(
-          title: 'Photos',
+          title: l10n.tr('photos'),
           subtitle: photoSubtitle,
           icon: Icons.photo_library_outlined,
           mode: _ComposerMediaMode.photos,
@@ -561,16 +568,16 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         if (_supportsVideoModes) ...[
           const SizedBox(height: 8),
           _mediaModeTile(
-            title: 'Video file',
-            subtitle: '1 video from gallery',
+            title: l10n.tr('video_file'),
+            subtitle: l10n.tr('one_video_from_gallery'),
             icon: Icons.video_library_outlined,
             mode: _ComposerMediaMode.videoFile,
             enabled: true,
           ),
           const SizedBox(height: 8),
           _mediaModeTile(
-            title: 'YouTube link',
-            subtitle: '1 YouTube URL only',
+            title: l10n.tr('youtube_link'),
+            subtitle: l10n.tr('one_youtube_only'),
             icon: Icons.smart_display_outlined,
             mode: _ComposerMediaMode.youtube,
             enabled: true,
@@ -622,7 +629,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           OutlinedButton.icon(
             onPressed: _loading ? null : _pickPhotos,
             icon: const Icon(Icons.add_photo_alternate_outlined),
-            label: Text(_selectedImages.isEmpty ? 'Choose photos' : 'Replace photos'),
+            label: Text(
+              _selectedImages.isEmpty
+                  ? l10n.tr('choose_photos')
+                  : l10n.tr('replace_photos'),
+            ),
           ),
         ],
         if (_mediaMode == _ComposerMediaMode.videoFile) ...[
@@ -655,15 +666,19 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           OutlinedButton.icon(
             onPressed: _loading ? null : _pickVideoFile,
             icon: const Icon(Icons.video_library_outlined),
-            label: Text(_selectedVideo == null ? 'Choose video' : 'Replace video'),
+            label: Text(
+              _selectedVideo == null
+                  ? l10n.tr('choose_video')
+                  : l10n.tr('replace_video'),
+            ),
           ),
         ],
         if (_mediaMode == _ComposerMediaMode.youtube) ...[
           TextField(
             controller: _videoUrlCtrl,
             keyboardType: TextInputType.url,
-            decoration: const InputDecoration(
-              labelText: 'YouTube video URL',
+            decoration: InputDecoration(
+              labelText: l10n.tr('youtube_video_url'),
               hintText: 'https://youtube.com/watch?v=...',
               border: OutlineInputBorder(),
             ),
@@ -675,8 +690,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Post')),
+      appBar: AppBar(title: Text(l10n.tr('create_post'))),
       bottomNavigationBar: const GlobalBottomNav(),
       body: Center(
         child: ConstrainedBox(
@@ -690,8 +706,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   TextField(
                     controller: _contentCtrl,
                     maxLines: 5,
-                    decoration: const InputDecoration(
-                      labelText: 'What is happening?',
+                    decoration: InputDecoration(
+                      labelText: l10n.tr('what_is_happening'),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -701,12 +717,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       OutlinedButton.icon(
                         onPressed: _loading ? null : _pickMentions,
                         icon: const Icon(Icons.alternate_email),
-                        label: const Text('Tag connections'),
+                        label: Text(l10n.tr('tag_connections')),
                       ),
                       if (_selectedMentions.isNotEmpty) ...[
                         const SizedBox(width: 10),
                         Text(
-                          '${_selectedMentions.length} selected',
+                          l10n.tr('selected_count', args: {'count': '${_selectedMentions.length}'}),
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
@@ -751,9 +767,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       if (v == null) return;
                       _onPostTypeChanged(v);
                     },
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      labelText: 'Post category',
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      labelText: l10n.tr('post_category'),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -763,8 +779,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       decoration: InputDecoration(
                         border: const OutlineInputBorder(),
                         labelText: _isFoodAdPost
-                            ? 'Food name'
-                            : (_isServicePost ? 'Service title' : 'Product title'),
+                            ? l10n.tr('food_name')
+                            : (_isServicePost
+                                ? l10n.tr('service_title')
+                                : l10n.tr('product_title')),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -774,8 +792,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       decoration: InputDecoration(
                         border: const OutlineInputBorder(),
                         labelText: _isFoodAdPost
-                            ? 'Food price (optional)'
-                            : (_isServicePost ? 'Rate/Budget (optional)' : 'Price'),
+                            ? l10n.tr('food_price_optional')
+                            : (_isServicePost
+                                ? l10n.tr('rate_budget_optional')
+                                : l10n.tr('price')),
                         hintText: _isFoodAdPost
                             ? 'e.g. 12.99'
                             : (_isServicePost ? 'e.g. 50' : 'e.g. 1200'),
@@ -787,17 +807,17 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   if (_isMarketPost) ...[
                     DropdownButtonFormField<String>(
                       initialValue: _selectedMarketIntent,
-                      items: const [
-                        DropdownMenuItem(value: 'selling', child: Text('Selling')),
-                        DropdownMenuItem(value: 'buying', child: Text('Buying')),
+                      items: [
+                        DropdownMenuItem(value: 'selling', child: Text(l10n.tr('selling'))),
+                        DropdownMenuItem(value: 'buying', child: Text(l10n.tr('buying'))),
                       ],
                       onChanged: (v) {
                         if (v == null) return;
                         setState(() => _selectedMarketIntent = v);
                       },
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Marketplace type',
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        labelText: l10n.tr('marketplace_type'),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -810,9 +830,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         if (v == null) return;
                         setState(() => _selectedMarketCategory = v);
                       },
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Product category',
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        labelText: l10n.tr('product_category'),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -827,9 +847,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         if (v == null) return;
                         setState(() => _selectedServiceCategory = v);
                       },
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Service category',
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        labelText: l10n.tr('service_category'),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -844,9 +864,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         if (v == null) return;
                         setState(() => _selectedFoodCategory = v);
                       },
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Food category',
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        labelText: l10n.tr('food_category'),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -856,30 +876,30 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   if (_selectedPostType == PostType.post && !_isOrganization) ...[
                     DropdownButtonFormField<String>(
                       initialValue: _visibility,
-                      items: const [
-                        DropdownMenuItem(value: 'public', child: Text('Public')),
-                        DropdownMenuItem(value: 'followers', child: Text('Local')),
+                      items: [
+                        DropdownMenuItem(value: 'public', child: Text(l10n.tr('public'))),
+                        DropdownMenuItem(value: 'followers', child: Text(l10n.tr('local'))),
                       ],
                       onChanged: (v) => setState(() => _visibility = v ?? 'public'),
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Visibility',
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        labelText: l10n.tr('visibility'),
                       ),
                     ),
                   ] else ...[
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: Colors.blue.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Icon(Icons.public, color: Colors.blue),
-                          SizedBox(width: 12),
+                          const Icon(Icons.public, color: Colors.blue),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'This post will be public so everyone nearby can see it.',
+                              l10n.tr('this_post_public_nearby'),
                               style: TextStyle(color: Colors.blue),
                             ),
                           ),
@@ -890,16 +910,16 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: _shareScope,
-                    items: const [
-                      DropdownMenuItem(value: 'none', child: Text('No sharing')),
-                      DropdownMenuItem(value: 'followers', child: Text('Followers can share')),
-                      DropdownMenuItem(value: 'connections', child: Text('Connections can share')),
-                      DropdownMenuItem(value: 'public', child: Text('Public can share')),
+                    items: [
+                      DropdownMenuItem(value: 'none', child: Text(l10n.tr('no_sharing'))),
+                      DropdownMenuItem(value: 'followers', child: Text(l10n.tr('followers_can_share'))),
+                      DropdownMenuItem(value: 'connections', child: Text(l10n.tr('connections_can_share'))),
+                      DropdownMenuItem(value: 'public', child: Text(l10n.tr('public_can_share'))),
                     ],
                     onChanged: (v) => setState(() => _shareScope = v ?? 'none'),
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      labelText: 'Allow sharing',
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      labelText: l10n.tr('allow_sharing'),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -911,7 +931,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Post'),
+                        : Text(l10n.tr('post_label')),
                   ),
                 ],
               ),

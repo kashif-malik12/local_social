@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/localization/app_localizations.dart';
 import '../../../widgets/auth_field_glyph.dart';
 import '../../../widgets/brand_lockup.dart';
 import '../../../widgets/google_mark.dart';
@@ -27,10 +28,10 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.errorCode == 'disabled') {
-      _error = 'This account has been disabled. Contact an administrator.';
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.errorCode == 'disabled' && _error == null) {
+      _error = context.l10n.tr('account_disabled_contact_admin');
     }
   }
 
@@ -63,6 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _loginWithGoogle() async {
+    final l10n = context.l10n;
     setState(() {
       _loading = true;
       _error = null;
@@ -89,7 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final idToken = googleAuth.idToken;
 
       if (accessToken == null || idToken == null) {
-        throw 'Google sign-in did not return the required tokens.';
+        throw l10n.tr('google_tokens_missing');
       }
 
       final result = await Supabase.instance.client.auth.signInWithIdToken(
@@ -107,8 +109,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _finishLogin(String? userId) async {
+    final l10n = context.l10n;
     if (userId == null) {
-      throw 'Sign in failed';
+      throw l10n.tr('sign_in_failed');
     }
 
     final client = Supabase.instance.client;
@@ -117,7 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (profile?['is_disabled'] == true) {
         await client.auth.signOut();
-        throw 'This account has been disabled. Contact an administrator.';
+        throw l10n.tr('account_disabled_contact_admin');
       }
     } on PostgrestException {
       // Allow login if the moderation migration has not been applied yet.
@@ -128,6 +131,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
     return Scaffold(
       body: Container(
@@ -165,7 +169,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       width: 64,
                       height: 64,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
+                        color: Colors.white.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(18),
                       ),
                       child: const Icon(
@@ -175,9 +179,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     SizedBox(height: isWide ? 26 : 22),
-                    const Text(
-                      'Welcome to',
-                      style: TextStyle(
+                    Text(
+                      l10n.tr('welcome_to'),
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w600,
                         color: Colors.white70,
@@ -188,11 +192,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     const BrandLockup(height: 52),
                     const SizedBox(height: 16),
                     Text(
-                      'Neighborhood updates, marketplace deals, gigs, food ads, and local conversations in one place.',
+                      l10n.tr('login_intro'),
                       style: TextStyle(
                         fontSize: 15,
                         height: 1.5,
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.8),
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -200,10 +204,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       spacing: 10,
                       runSpacing: 10,
                       children: [
-                        _brandChip('Nearby posts'),
-                        _brandChip('Marketplace'),
-                        _brandChip('Offer chats'),
-                        _brandChip('Local services'),
+                        _brandChip(l10n.tr('nearby_posts')),
+                        _brandChip(l10n.tr('marketplace')),
+                        _brandChip(l10n.tr('offer_chats')),
+                        _brandChip(l10n.tr('local_services')),
                       ],
                     ),
                   ],
@@ -216,7 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Container(
                     padding: const EdgeInsets.fromLTRB(26, 26, 26, 24),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.96),
+                      color: Colors.white.withValues(alpha: 0.96),
                       borderRadius: BorderRadius.circular(26),
                       border: Border.all(color: const Color(0xFFF0E8DA)),
                       boxShadow: const [
@@ -232,7 +236,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Welcome back',
+                          l10n.tr('welcome_back'),
                           style: theme.textTheme.headlineSmall?.copyWith(
                             color: const Color(0xFF202124),
                             fontWeight: FontWeight.w800,
@@ -240,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Sign in to continue to your local network.',
+                          l10n.tr('sign_in_to_network'),
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: const Color(0xFF6C6C6C),
                           ),
@@ -248,7 +252,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 22),
                         _buildField(
                           controller: _email,
-                          hintText: 'Email',
+                          hintText: l10n.tr('email'),
                           prefix: const AuthFieldGlyph(kind: AuthFieldGlyphKind.email),
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
@@ -257,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 12),
                         _buildField(
                           controller: _password,
-                          hintText: 'Password',
+                          hintText: l10n.tr('password'),
                           prefix: const AuthFieldGlyph(kind: AuthFieldGlyphKind.password),
                           focusNode: _passwordFocus,
                           obscureText: true,
@@ -276,7 +280,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            child: const Text('Forgot password?'),
+                            child: Text(l10n.tr('forgot_password')),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -300,7 +304,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
-                            child: Text(_loading ? 'Signing in...' : 'Sign in'),
+                            child: Text(
+                              _loading ? l10n.tr('signing_in') : l10n.tr('sign_in'),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -320,10 +326,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                GoogleMark(size: 22),
-                                SizedBox(width: 10),
-                                Text('Continue with Google'),
+                              children: [
+                                const GoogleMark(size: 22),
+                                const SizedBox(width: 10),
+                                Text(l10n.tr('continue_with_google')),
                               ],
                             ),
                           ),
@@ -342,7 +348,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
-                            child: const Text('Create an account'),
+                            child: Text(l10n.tr('create_account_cta')),
                           ),
                         ),
                       ],
@@ -374,12 +380,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    loginCard,
-                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: brandPanel,
                     ),
+                    const SizedBox(height: 16),
+                    loginCard,
                   ],
                 ),
               );
@@ -394,9 +400,9 @@ class _LoginScreenState extends State<LoginScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
+        color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withOpacity(0.16)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
       ),
       child: Text(
         label,

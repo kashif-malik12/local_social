@@ -1,6 +1,6 @@
 # local_social — Project Context for Claude
 
-> **IMPORTANT: Always read `docs/critical AI starter.md` before doing anything in this project.**
+> **IMPORTANT: Always read `critical AI starter.md` before doing anything in this project.**
 
 ## Overview
 A Flutter social media app for local communities. Built with Supabase as the backend. Originally developed with Codex CLI; migrated to Claude Code on 2026-03-11.
@@ -109,12 +109,12 @@ The web API key is restricted to:
 
 ## Memory & Decision Log
 
-- **`docs/decision_log.md`** is the single source of truth for all project decisions, technical context, and session memory.
-- After every significant change (architecture, Android build, media flow, navigation, etc.), update `docs/decision_log.md` immediately — do not wait to be asked.
+- **`decision_log.md`** is the single source of truth for all project decisions, technical context, and session memory.
+- After every significant change (architecture, Android build, media flow, navigation, etc.), update `decision_log.md` immediately — do not wait to be asked.
 
 ## Changelog
 | Date | Description |
 |------|-------------|
-| 2026-03-11 | Initial Claude Code session. Ran `flutter analyze`, cleaned 12 warnings → 1 warning. Created CLAUDE.md. |
+| 2026-03-11 | Initial Claude Code session. Ran `flutter analyze`, cleaned 12 warnings → 1 warning. Created `docs/CLAUDE.md`. |
 | 2026-03-11 | Fixed all 10 BuildContext-across-async-gaps issues. Pattern: capture `ScaffoldMessenger.of(context)` before awaits; add `if (!mounted) return` after awaits; use `ctx.mounted` for dialog contexts. Issues: 140→115. |
 | 2026-03-16 | Security: rotated exposed Firebase API keys (were public in git). Gitignored `google-services.json` and `firebase-messaging-sw.js`. Moved web key to `String.fromEnvironment()` + build-time injection via `scripts/build_web.sh`. Applied HTTP referrer + API restrictions in Google Cloud Console. |

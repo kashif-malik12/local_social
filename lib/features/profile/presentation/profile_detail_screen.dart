@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/business_categories.dart';
+import '../../../core/localization/app_localizations.dart';
 import '../../../core/restaurant_categories.dart';
 import '../../../models/post_model.dart';
 import '../../../models/portfolio_item.dart';
@@ -76,6 +77,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     required String bio,
     required bool canOpenLists,
   }) {
+    final l10n = context.l10n;
     final entityName = _profileEntityName();
     final categoryLabel = _profileCategoryLabel();
     final roleTitle = _profileRoleTitle();
@@ -122,11 +124,17 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           ],
           if (type.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text('Type: $type', style: const TextStyle(fontSize: 12)),
+            Text(
+              l10n.tr('type', args: {'value': type}),
+              style: const TextStyle(fontSize: 12),
+            ),
           ],
           if (location.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text('Location: $location', style: const TextStyle(fontSize: 12)),
+            Text(
+              l10n.tr('location', args: {'value': location}),
+              style: const TextStyle(fontSize: 12),
+            ),
           ],
           if (bio.isNotEmpty) ...[
             const SizedBox(height: 10),
@@ -150,7 +158,10 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                   onTap: canOpenLists
                       ? () => context.push('/p/${widget.profileId}/followers')
                       : null,
-                  child: _StatTile(label: 'Followers', value: _followersCount),
+                  child: _StatTile(
+                    label: l10n.tr('followers'),
+                    value: _followersCount,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -160,7 +171,10 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                   onTap: canOpenLists
                       ? () => context.push('/p/${widget.profileId}/following')
                       : null,
-                  child: _StatTile(label: 'Following', value: _followingCount),
+                  child: _StatTile(
+                    label: l10n.tr('following'),
+                    value: _followingCount,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -168,7 +182,10 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 child: _clickableStat(
                   enabled: _isMe,
                   onTap: _isMe ? () => context.push('/p/${widget.profileId}/connections') : null,
-                  child: _StatTile(label: 'Connections', value: _connectionsCount),
+                  child: _StatTile(
+                    label: l10n.tr('connections'),
+                    value: _connectionsCount,
+                  ),
                 ),
               ),
             ],
@@ -176,7 +193,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           if (!canOpenLists) ...[
             const SizedBox(height: 8),
             Text(
-              'Followers/Following lists are private.',
+              l10n.tr('followers_following_private'),
               style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12),
             ),
           ],
@@ -188,7 +205,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 child: OutlinedButton.icon(
                   onPressed: () => context.push('/chat/user/${widget.profileId}'),
                   icon: const Icon(Icons.message_outlined),
-                  label: const Text('Message'),
+                  label: Text(l10n.tr('message')),
                 ),
               ),
               const SizedBox(height: 10),
@@ -198,13 +215,13 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               child: ElevatedButton(
                 onPressed:
                     (_loading || _followStatus == FollowStatus.pending) ? null : _toggleFollow,
-                child: Text(_followButtonText()),
+                child: Text(_followButtonText(context)),
               ),
             ),
             if (!_canMessageLoading && !_canMessage) ...[
               const SizedBox(height: 8),
               Text(
-                'Message is available after you both follow each other.',
+                l10n.tr('message_after_mutual_follow'),
                 style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
@@ -215,20 +232,21 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     );
   }
 
-  String _profileTypeLabel() {
+  String _profileTypeLabel(BuildContext context) {
+    final l10n = context.l10n;
     final type = (_profile?['profile_type'] ?? _profile?['account_type'] ?? '').toString();
     if (type != 'org') return type;
 
     final orgKind = (_profile?['org_kind'] ?? '').toString();
     switch (orgKind) {
       case 'government':
-        return 'Organization • Government';
+        return l10n.tr('organization_government');
       case 'nonprofit':
-        return 'Organization • Non-profit';
+        return l10n.tr('organization_nonprofit');
       case 'news_agency':
-        return 'Organization • News agency';
+        return l10n.tr('organization_news_agency');
       default:
-        return 'Organization';
+        return l10n.tr('organization');
     }
   }
 
@@ -283,6 +301,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   }
 
   Widget _buildProfileSidebar(BuildContext context) {
+    final l10n = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -297,7 +316,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Profile actions',
+                l10n.tr('profile_actions'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
@@ -307,17 +326,20 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 _buildSidebarAction(
                   context: context,
                   icon: Icons.person_add_alt_1_outlined,
-                  title: 'Follow requests',
+                  title: l10n.tr('follow_requests'),
                   subtitle: _pendingRequests > 0
-                      ? '$_pendingRequests pending requests'
-                      : 'Review incoming requests',
+                      ? l10n.tr(
+                          'follow_requests_pending',
+                          args: {'count': '$_pendingRequests'},
+                        )
+                      : l10n.tr('review_incoming_requests'),
                   onTap: () => context.push('/follow-requests'),
                 ),
                 _buildSidebarAction(
                   context: context,
                   icon: Icons.edit_outlined,
-                  title: 'Edit profile',
-                  subtitle: 'Update your details and location',
+                  title: l10n.tr('edit_profile'),
+                  subtitle: l10n.tr('update_details_location'),
                   onTap: () async {
                     final router = GoRouter.of(context);
                     await router.push('/profile/edit');
@@ -328,73 +350,82 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 _buildSidebarAction(
                   context: context,
                   icon: Icons.settings_outlined,
-                  title: 'Profile settings',
-                  subtitle: 'Manage app preferences like video autoplay',
+                  title: l10n.tr('profile_settings'),
+                  subtitle: l10n.tr('manage_app_preferences'),
                   onTap: () => context.push('/profile/settings'),
                 ),
                 _buildSidebarAction(
                   context: context,
                   icon: Icons.groups_outlined,
-                  title: 'Followers',
-                  subtitle: '$_followersCount people follow you',
+                  title: l10n.tr('followers'),
+                  subtitle: l10n.tr(
+                    'followers_count_subtitle',
+                    args: {'count': '$_followersCount'},
+                  ),
                   onTap: () => context.push('/p/${widget.profileId}/followers'),
                 ),
                 _buildSidebarAction(
                   context: context,
                   icon: Icons.group_outlined,
-                  title: 'Following',
-                  subtitle: '$_followingCount profiles you follow',
+                  title: l10n.tr('following'),
+                  subtitle: l10n.tr(
+                    'following_count_subtitle',
+                    args: {'count': '$_followingCount'},
+                  ),
                   onTap: () => context.push('/p/${widget.profileId}/following'),
                 ),
                 _buildSidebarAction(
                   context: context,
                   icon: Icons.hub_outlined,
-                  title: 'Connections',
-                  subtitle: '$_connectionsCount people follow you back',
+                  title: l10n.tr('connections'),
+                  subtitle: l10n.tr(
+                    'connections_count_subtitle',
+                    args: {'count': '$_connectionsCount'},
+                  ),
                   onTap: () => context.push('/p/${widget.profileId}/connections'),
                 ),
                 _buildSidebarAction(
                   context: context,
                   icon: Icons.inventory_2_outlined,
-                  title: 'My products',
-                  subtitle: 'Edit or delete your marketplace ads',
+                  title: l10n.tr('my_products'),
+                  subtitle: l10n.tr('edit_delete_marketplace_ads'),
                   onTap: () => context.push('/profile/my-products'),
                 ),
                 _buildSidebarAction(
                   context: context,
                   icon: Icons.work_outline,
-                  title: 'My gigs',
-                  subtitle: 'Edit or delete your service ads',
+                  title: l10n.tr('my_gigs'),
+                  subtitle: l10n.tr('edit_delete_service_ads'),
                   onTap: () => context.push('/profile/my-gigs'),
                 ),
                 if ((_profile?['is_restaurant'] == true))
                   _buildSidebarAction(
                     context: context,
                     icon: Icons.restaurant_menu_outlined,
-                    title: 'My foods',
-                    subtitle: 'Edit or delete your food ads',
+                    title: l10n.tr('my_foods'),
+                    subtitle: l10n.tr('edit_delete_food_ads'),
                     onTap: () => context.push('/profile/my-foods'),
                   ),
               ] else ...[
                 _buildSidebarAction(
                   context: context,
                   icon: Icons.groups_outlined,
-                  title: 'Followers',
-                  subtitle: 'Visible only on your own profile',
+                  title: l10n.tr('followers'),
+                  subtitle: l10n.tr('visible_only_own_profile'),
                   onTap: null,
                 ),
                 _buildSidebarAction(
                   context: context,
                   icon: Icons.group_outlined,
-                  title: 'Following',
-                  subtitle: 'Visible only on your own profile',
+                  title: l10n.tr('following'),
+                  subtitle: l10n.tr('visible_only_own_profile'),
                   onTap: null,
                 ),
                 _buildSidebarAction(
                   context: context,
                   icon: Icons.hub_outlined,
-                  title: 'Connections',
-                  subtitle: 'Visible only on your own profile',
+                  title: l10n.tr('connections'),
+                  subtitle: l10n.tr('visible_only_own_profile'),
                   onTap: null,
                 ),
               ],
@@ -406,18 +437,19 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   }
 
   List<PopupMenuEntry<String>> _buildProfileMenuItems() {
+    final l10n = context.l10n;
     if (_isMe) {
       return [
-        const PopupMenuItem(value: 'follow_requests', child: Text('Follow requests')),
-        const PopupMenuItem(value: 'edit_profile', child: Text('Edit profile')),
-        const PopupMenuItem(value: 'profile_settings', child: Text('Profile settings')),
-        const PopupMenuItem(value: 'followers', child: Text('Followers')),
-        const PopupMenuItem(value: 'following', child: Text('Following')),
-        const PopupMenuItem(value: 'connections', child: Text('Connections')),
-        const PopupMenuItem(value: 'my_products', child: Text('My products')),
-        const PopupMenuItem(value: 'my_gigs', child: Text('My gigs')),
+        PopupMenuItem(value: 'follow_requests', child: Text(l10n.tr('follow_requests'))),
+        PopupMenuItem(value: 'edit_profile', child: Text(l10n.tr('edit_profile'))),
+        PopupMenuItem(value: 'profile_settings', child: Text(l10n.tr('profile_settings'))),
+        PopupMenuItem(value: 'followers', child: Text(l10n.tr('followers'))),
+        PopupMenuItem(value: 'following', child: Text(l10n.tr('following'))),
+        PopupMenuItem(value: 'connections', child: Text(l10n.tr('connections'))),
+        PopupMenuItem(value: 'my_products', child: Text(l10n.tr('my_products'))),
+        PopupMenuItem(value: 'my_gigs', child: Text(l10n.tr('my_gigs'))),
         if ((_profile?['is_restaurant'] == true))
-          const PopupMenuItem(value: 'my_foods', child: Text('My foods')),
+          PopupMenuItem(value: 'my_foods', child: Text(l10n.tr('my_foods'))),
       ];
     }
 
@@ -469,6 +501,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     required String type,
     required String location,
   }) {
+    final l10n = context.l10n;
     final entityName = _profileEntityName();
     final categoryLabel = _profileCategoryLabel();
     final roleTitle = _profileRoleTitle();
@@ -486,7 +519,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Profile overview',
+                l10n.tr('profile_overview'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
@@ -521,7 +554,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               if (type.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Type: $type',
+                  l10n.tr('type', args: {'value': type}),
                   style: TextStyle(
                     fontSize: 12,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -531,7 +564,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               if (location.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(
-                  'Location: $location',
+                  l10n.tr('location', args: {'value': location}),
                   style: TextStyle(
                     fontSize: 12,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -553,7 +586,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Connections',
+                l10n.tr('connections'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
@@ -562,19 +595,19 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               _clickableStat(
                 enabled: _isMe,
                 onTap: _isMe ? () => context.push('/p/${widget.profileId}/followers') : null,
-                child: _StatTile(label: 'Followers', value: _followersCount),
+                child: _StatTile(label: l10n.tr('followers'), value: _followersCount),
               ),
               const SizedBox(height: 10),
               _clickableStat(
                 enabled: _isMe,
                 onTap: _isMe ? () => context.push('/p/${widget.profileId}/following') : null,
-                child: _StatTile(label: 'Following', value: _followingCount),
+                child: _StatTile(label: l10n.tr('following'), value: _followingCount),
               ),
               const SizedBox(height: 10),
               _clickableStat(
                 enabled: _isMe,
                 onTap: _isMe ? () => context.push('/p/${widget.profileId}/connections') : null,
-                child: _StatTile(label: 'Connections', value: _connectionsCount),
+                child: _StatTile(label: l10n.tr('connections'), value: _connectionsCount),
               ),
             ],
           ),
@@ -600,14 +633,14 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.45),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
               borderRadius: BorderRadius.circular(18),
             ),
             child: Row(
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                  backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
                   child: Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
                 ),
                 const SizedBox(width: 12),
@@ -643,6 +676,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     required String bio,
     required bool canOpenLists,
   }) {
+    final l10n = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -660,11 +694,11 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.35),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Text(
-              'This is your profile',
+            child: Text(
+              l10n.tr('this_is_your_profile'),
               textAlign: TextAlign.center,
             ),
           ),
@@ -689,10 +723,10 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                       children: [
                         const Icon(Icons.tune_rounded),
                         const SizedBox(width: 10),
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'Profile actions',
-                            style: TextStyle(fontWeight: FontWeight.w700),
+                            l10n.tr('profile_actions'),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ),
                         Icon(
@@ -713,17 +747,20 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                         _buildSidebarAction(
                           context: context,
                           icon: Icons.person_add_alt_1_outlined,
-                          title: 'Follow requests',
+                          title: l10n.tr('follow_requests'),
                           subtitle: _pendingRequests > 0
-                              ? '$_pendingRequests pending requests'
-                              : 'Review incoming requests',
+                              ? l10n.tr(
+                                  'follow_requests_pending',
+                                  args: {'count': '$_pendingRequests'},
+                                )
+                              : l10n.tr('review_incoming_requests'),
                           onTap: () => context.push('/follow-requests'),
                         ),
                         _buildSidebarAction(
                           context: context,
                           icon: Icons.edit_outlined,
-                          title: 'Edit profile',
-                          subtitle: 'Update your details and location',
+                          title: l10n.tr('edit_profile'),
+                          subtitle: l10n.tr('update_details_location'),
                           onTap: () async {
                             await context.push('/profile/edit');
                             if (!mounted) return;
@@ -733,44 +770,50 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                         _buildSidebarAction(
                           context: context,
                           icon: Icons.settings_outlined,
-                          title: 'Profile settings',
-                          subtitle: 'Manage app preferences like video autoplay',
+                          title: l10n.tr('profile_settings'),
+                          subtitle: l10n.tr('manage_app_preferences'),
                           onTap: () => context.push('/profile/settings'),
                         ),
                         _buildSidebarAction(
                           context: context,
                           icon: Icons.groups_outlined,
-                          title: 'Followers',
-                          subtitle: '$_followersCount people follow you',
+                          title: l10n.tr('followers'),
+                          subtitle: l10n.tr(
+                            'followers_count_subtitle',
+                            args: {'count': '$_followersCount'},
+                          ),
                           onTap: () => context.push('/p/${widget.profileId}/followers'),
                         ),
                         _buildSidebarAction(
                           context: context,
                           icon: Icons.group_outlined,
-                          title: 'Following',
-                          subtitle: '$_followingCount profiles you follow',
+                          title: l10n.tr('following'),
+                          subtitle: l10n.tr(
+                            'following_count_subtitle',
+                            args: {'count': '$_followingCount'},
+                          ),
                           onTap: () => context.push('/p/${widget.profileId}/following'),
                         ),
                         _buildSidebarAction(
                           context: context,
                           icon: Icons.inventory_2_outlined,
-                          title: 'My products',
-                          subtitle: 'Edit or delete your marketplace ads',
+                          title: l10n.tr('my_products'),
+                          subtitle: l10n.tr('edit_delete_marketplace_ads'),
                           onTap: () => context.push('/profile/my-products'),
                         ),
                         _buildSidebarAction(
                           context: context,
                           icon: Icons.work_outline,
-                          title: 'My gigs',
-                          subtitle: 'Edit or delete your service ads',
+                          title: l10n.tr('my_gigs'),
+                          subtitle: l10n.tr('edit_delete_service_ads'),
                           onTap: () => context.push('/profile/my-gigs'),
                         ),
                         if ((_profile?['is_restaurant'] == true))
                           _buildSidebarAction(
                             context: context,
                             icon: Icons.restaurant_menu_outlined,
-                            title: 'My foods',
-                            subtitle: 'Edit or delete your food ads',
+                            title: l10n.tr('my_foods'),
+                            subtitle: l10n.tr('edit_delete_food_ads'),
                             onTap: () => context.push('/profile/my-foods'),
                           ),
                       ],
@@ -1187,19 +1230,20 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   }
 
   Future<void> _deletePost(Post post) async {
+    final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Delete post?'),
-        content: const Text('This will remove the post from your profile and feed.'),
+        title: Text(l10n.tr('delete_post')),
+        content: Text(l10n.tr('delete_post_body')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.tr('cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: Text(l10n.tr('delete')),
           ),
         ],
       ),
@@ -1216,12 +1260,14 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Post deleted.')),
+        SnackBar(content: Text(l10n.tr('post_deleted'))),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Delete failed: $e')),
+        SnackBar(
+          content: Text(l10n.tr('delete_failed', args: {'error': '$e'})),
+        ),
       );
     }
   }
@@ -1255,7 +1301,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Follow error: $e')),
+          SnackBar(
+            content: Text(context.l10n.tr('follow_error', args: {'error': '$e'})),
+          ),
         );
       }
     } finally {
@@ -1263,16 +1311,17 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     }
   }
 
-  String _followButtonText() {
+  String _followButtonText(BuildContext context) {
+    final l10n = context.l10n;
     switch (_followStatus) {
       case FollowStatus.accepted:
-        return 'Unfollow';
+        return l10n.tr('unfollow');
       case FollowStatus.pending:
-        return 'Requested';
+        return l10n.tr('requested');
       case FollowStatus.declined:
-        return 'Request again';
+        return l10n.tr('request_again');
       case FollowStatus.none:
-        return 'Request follow';
+        return l10n.tr('request_follow');
     }
   }
 
@@ -1420,7 +1469,11 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Portfolio upload error: $e')),
+        SnackBar(
+          content: Text(
+            context.l10n.tr('portfolio_upload_error', args: {'error': '$e'}),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _portfolioActionLoading = false);
@@ -1446,10 +1499,27 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   void _openImage(String url) {
     showDialog(
       context: context,
-      builder: (_) => Dialog(
+      builder: (dialogContext) => Dialog(
         insetPadding: const EdgeInsets.all(12),
-        child: InteractiveViewer(
-          child: Image.network(url),
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.8,
+              maxScale: 4,
+              child: Center(
+                child: Image.network(url, fit: BoxFit.contain),
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                icon: const Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1459,19 +1529,20 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     if (!_isMe) return;
     if (_portfolioActionLoading) return;
 
+    final l10n = context.l10n;
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Remove photo?'),
-        content: const Text('This will remove it from your portfolio.'),
+        title: Text(l10n.tr('remove_photo')),
+        content: Text(l10n.tr('remove_photo_body')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.tr('cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove'),
+            child: Text(l10n.tr('remove')),
           ),
         ],
       ),
@@ -1488,7 +1559,11 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Portfolio delete error: $e')),
+        SnackBar(
+          content: Text(
+            context.l10n.tr('portfolio_delete_error', args: {'error': '$e'}),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _portfolioActionLoading = false);
@@ -1517,7 +1592,11 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Portfolio update error: $e')),
+        SnackBar(
+          content: Text(
+            context.l10n.tr('portfolio_update_error', args: {'error': '$e'}),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _portfolioActionLoading = false);
@@ -1525,6 +1604,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   }
 
   Widget _buildPortfolioSection(BuildContext context) {
+    final l10n = context.l10n;
     if (!_canHavePortfolio()) return const SizedBox.shrink();
 
     final canAdd = _isMe && _portfolio.length < 5;
@@ -1539,7 +1619,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     if (_portfolioError != null) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text('Portfolio error:\n$_portfolioError'),
+        child: Text(
+          l10n.tr('portfolio_error', args: {'error': '$_portfolioError'}),
+        ),
       );
     }
 
@@ -1548,7 +1630,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       children: [
         Row(
           children: [
-            Text('Portfolio', style: Theme.of(context).textTheme.titleMedium),
+            Text(l10n.tr('portfolio'), style: Theme.of(context).textTheme.titleMedium),
             const Spacer(),
             Text('${_portfolio.length}/5',
                 style: TextStyle(color: Theme.of(context).hintColor)),
@@ -1563,14 +1645,14 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.add),
-                label: const Text('Add'),
+                label: Text(l10n.tr('add')),
               ),
           ],
         ),
         const SizedBox(height: 10),
         if (_portfolio.isEmpty)
           Text(
-            _isMe ? 'Add up to 5 photos to your portfolio.' : 'No portfolio photos yet.',
+            _isMe ? l10n.tr('add_portfolio_photos') : l10n.tr('no_portfolio_photos'),
             style: TextStyle(color: Theme.of(context).hintColor),
           )
         else
@@ -1612,7 +1694,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                              children: [
                                _buildPortfolioActionButton(
                                  icon: Icons.edit_outlined,
-                                 tooltip: 'Replace photo',
+                                 tooltip: context.l10n.tr('replace_photo'),
                                  onTap: _portfolioActionLoading
                                      ? null
                                      : () => _replacePortfolioImage(item),
@@ -1620,7 +1702,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                                const SizedBox(width: 6),
                                _buildPortfolioActionButton(
                                  icon: Icons.delete_outline,
-                                 tooltip: 'Remove photo',
+                                 tooltip: context.l10n.tr('remove_photo_tooltip'),
                                  onTap: _portfolioActionLoading
                                      ? null
                                      : () => _confirmDeletePortfolio(item.id),
@@ -1653,14 +1735,14 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         bottomNavigationBar: const GlobalBottomNav(),
         body: Padding(
           padding: const EdgeInsets.all(16),
-          child: Text('Profile error:\n$_error'),
+          child: Text(context.l10n.tr('profile_error', args: {'error': '$_error'})),
         ),
       );
     }
 
     final name = (_profile?['full_name'] ?? 'Profile').toString();
     final bio = (_profile?['bio'] ?? '').toString();
-    final type = _profileTypeLabel();
+    final type = _profileTypeLabel(context);
     final city = (_profile?['city'] ?? '').toString();
     final zipcode = (_profile?['zipcode'] ?? '').toString();
     final location = city.isNotEmpty ? city : zipcode;
@@ -1753,7 +1835,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     required VoidCallback? onTap,
   }) {
     return Material(
-      color: Colors.black.withOpacity(0.58),
+      color: Colors.black.withValues(alpha: 0.58),
       shape: const CircleBorder(),
       child: InkWell(
         onTap: onTap,
@@ -1804,7 +1886,7 @@ class _ProfileMetaChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: const Color(0xFFE6DDCE)),
       ),

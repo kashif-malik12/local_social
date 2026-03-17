@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/business_categories.dart';
+import '../core/localization/app_localizations.dart';
 import '../widgets/global_app_bar.dart';
 import '../widgets/global_bottom_nav.dart';
 
@@ -149,16 +150,18 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: const GlobalAppBar(
-        title: 'Businesses',
+      appBar: GlobalAppBar(
+        title: l10n.tr('businesses'),
         showBackIfPossible: true,
         homeRoute: '/feed',
       ),
@@ -170,7 +173,7 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
-                hintText: 'Search businesses...',
+                hintText: l10n.tr('search_businesses'),
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _search.isEmpty
                     ? null
@@ -195,7 +198,7 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
             child: DropdownButtonFormField<String>(
               initialValue: _selectedCategory,
               items: [
-                const DropdownMenuItem(value: 'all', child: Text('All categories')),
+                DropdownMenuItem(value: 'all', child: Text(l10n.tr('all_categories'))),
                 ...businessMainCategories.map(
                   (c) => DropdownMenuItem(value: c, child: Text(businessCategoryLabel(c))),
                 ),
@@ -205,9 +208,9 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
                 setState(() => _selectedCategory = v);
                 _load();
               },
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Business category',
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: l10n.tr('business_category'),
               ),
             ),
           ),
@@ -215,7 +218,7 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
             child: Row(
               children: [
-                const Text('Distance:'),
+                Text(l10n.tr('distance_label')),
                 Expanded(
                   child: Slider(
                     value: _maxDistanceKm,
@@ -236,9 +239,9 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? Center(child: Text('Error: $_error'))
+                    ? Center(child: Text(l10n.tr('error_with_detail', args: {'error': '$_error'})))
                     : _businesses.isEmpty
-                        ? const Center(child: Text('No businesses found'))
+                        ? Center(child: Text(l10n.tr('no_businesses_found')))
                         : ListView.separated(
                             itemCount: _businesses.length,
                             separatorBuilder: (_, _) => const Divider(height: 1),
@@ -308,7 +311,7 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
                                           ),
                                         ),
                                       Text(
-                                        '${(b['business_type'] ?? '').toString().isNotEmpty ? businessCategoryLabel((b['business_type'] ?? '').toString()) : 'Business'}'
+                                        '${(b['business_type'] ?? '').toString().isNotEmpty ? businessCategoryLabel((b['business_type'] ?? '').toString()) : l10n.tr('business')}'
                                         '${dist != null ? ' • ${dist.toStringAsFixed(1)} km' : ''}'
                                         '${(b['city'] ?? '').toString().isNotEmpty ? ' • ${(b['city'] ?? '').toString()}' : ''}',
                                       ),

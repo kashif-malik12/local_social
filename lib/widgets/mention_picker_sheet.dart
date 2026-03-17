@@ -71,7 +71,7 @@ Future<List<MentionCandidate>?> showMentionPickerSheet({
                                     borderRadius: BorderRadius.circular(18),
                                     border: Border.all(
                                       color: selected
-                                          ? const Color(0xFF0F766E).withOpacity(0.45)
+                                          ? const Color(0xFF0F766E).withValues(alpha: 0.45)
                                           : const Color(0xFFE6DDCE),
                                     ),
                                   ),

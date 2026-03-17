@@ -80,7 +80,7 @@ class YoutubePreview extends StatelessWidget {
                 width: 62,
                 height: 62,
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.55),
+                  color: Colors.black.withValues(alpha: 0.55),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.play_arrow, color: Colors.white, size: 40),
@@ -178,7 +178,7 @@ class _YoutubePlayerSheetState extends State<_YoutubePlayerSheet> {
                         top: 12,
                         right: 12,
                         child: Material(
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withValues(alpha: 0.5),
                           shape: const CircleBorder(),
                           child: InkWell(
                             customBorder: const CircleBorder(),

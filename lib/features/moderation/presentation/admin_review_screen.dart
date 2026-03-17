@@ -164,7 +164,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
           .order('created_at', ascending: false);
       _postReports = List<Map<String, dynamic>>.from(rows);
     } catch (e) {
-      print('Post reports error: $e');
+      debugPrint('Post reports error: $e');
     }
   }
 
@@ -177,7 +177,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
           .order('created_at', ascending: false);
       _userReports = List<Map<String, dynamic>>.from(rows);
     } catch (e) {
-      print('User reports error: $e');
+      debugPrint('User reports error: $e');
     }
   }
 
@@ -193,7 +193,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
       _gigPosts = (results[1] as List).cast<Map<String, dynamic>>();
       _foodPosts = (results[2] as List).cast<Map<String, dynamic>>();
     } catch (e) {
-      print('Categorized posts error: $e');
+      debugPrint('Categorized posts error: $e');
     }
   }
 
@@ -208,7 +208,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
       _selectedPushUserId ??=
           _allUsers.isNotEmpty ? (_allUsers.first['id'] ?? '').toString() : null;
     } catch (e) {
-      print('Load users error: $e');
+      debugPrint('Load users error: $e');
     }
   }
 
@@ -347,7 +347,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
                           : ListView.separated(
                               shrinkWrap: true,
                               itemCount: users.length,
-                              separatorBuilder: (_, __) => const Divider(height: 1),
+                              separatorBuilder: (_, _) => const Divider(height: 1),
                               itemBuilder: (context, index) {
                                 final user = users[index];
                                 final userId = (user['id'] ?? '').toString();
@@ -818,7 +818,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
         _userBlocksMadeCounts = blocksMadeCounts;
       });
     } catch (e) {
-      print('Load moderation counts error: $e');
+      debugPrint('Load moderation counts error: $e');
     }
   }
 
@@ -1058,7 +1058,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
                             child: ListView.separated(
                               shrinkWrap: true,
                               itemCount: recipients.length > 8 ? 8 : recipients.length,
-                              separatorBuilder: (_, __) => const Divider(height: 1),
+                              separatorBuilder: (_, _) => const Divider(height: 1),
                               itemBuilder: (context, index) {
                                 final user = recipients[index];
                                 final userId = (user['id'] ?? '').toString();
@@ -2127,7 +2127,7 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
                       ),
                       const SizedBox(height: 20),
                       DropdownButtonFormField<String>(
-                        value: selectedRecipient,
+                        initialValue: selectedRecipient,
                         isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'Recipient',

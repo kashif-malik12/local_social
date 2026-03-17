@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UnreadBadgeController {
@@ -11,8 +10,7 @@ class UnreadBadgeController {
 
   final ValueNotifier<int> unread = ValueNotifier<int>(0);
 
-  StreamSubscription<List<Map<String, dynamic>>>? _sub1;
-  StreamSubscription<List<Map<String, dynamic>>>? _sub2;
+  RealtimeChannel? _channel;
   Timer? _fallbackRefreshTimer;
   bool _initialized = false;
 
@@ -28,34 +26,46 @@ class UnreadBadgeController {
     _fallbackRefreshTimer ??=
         Timer.periodic(const Duration(seconds: 45), (_) => refresh());
 
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      debugPrint('Unread badge realtime skipped on Android; using polling fallback');
-      return;
-    }
-
-    _sub1 = _db
-        .from('messages')
-        .stream(primaryKey: ['id'])
-        .order('created_at')
-        .listen(
-          (_) => refresh(),
-          onError: _handleRealtimeError,
-          cancelOnError: false,
-        );
-
-    _sub2 = _db
-        .from('offer_messages')
-        .stream(primaryKey: ['id'])
-        .order('created_at')
-        .listen(
-          (_) => refresh(),
-          onError: _handleRealtimeError,
-          cancelOnError: false,
-        );
+    _subscribeRealtime();
   }
 
-  void _handleRealtimeError(Object error, [StackTrace? stackTrace]) {
-    debugPrint('Unread badge realtime degraded: $error');
+  void _subscribeRealtime() {
+    if (_channel != null) return;
+
+    final channel = _db.channel('unread-badge');
+
+    channel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'messages',
+          callback: (_) => refresh(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'offer_messages',
+          callback: (_) => refresh(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'messages',
+          callback: (_) => refresh(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'offer_messages',
+          callback: (_) => refresh(),
+        )
+        .subscribe((status, [error]) {
+          if (error != null) {
+            debugPrint('Unread badge realtime error: $error');
+          }
+        });
+
+    _channel = channel;
   }
 
   Future<void> refresh() async {
@@ -79,10 +89,11 @@ class UnreadBadgeController {
   }
 
   void dispose() {
-    _sub1?.cancel();
-    _sub1 = null;
-    _sub2?.cancel();
-    _sub2 = null;
+    final ch = _channel;
+    _channel = null;
+    if (ch != null) {
+      _db.removeChannel(ch);
+    }
     _fallbackRefreshTimer?.cancel();
     _fallbackRefreshTimer = null;
     _initialized = false;

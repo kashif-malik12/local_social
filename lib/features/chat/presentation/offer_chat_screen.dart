@@ -468,7 +468,7 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
                                                   width: 42,
                                                   height: 42,
                                                   decoration: BoxDecoration(
-                                                    color: const Color(0xFF0F766E).withOpacity(0.12),
+                                                    color: const Color(0xFF0F766E).withValues(alpha: 0.12),
                                                     borderRadius: BorderRadius.circular(14),
                                                   ),
                                                   child: Icon(

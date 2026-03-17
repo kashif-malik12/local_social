@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/localization/app_localizations.dart';
 import '../../../widgets/auth_field_glyph.dart';
 import '../../../widgets/brand_lockup.dart';
 import '../../../widgets/google_mark.dart';
@@ -17,18 +18,54 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _otp = TextEditingController();
   final _passwordFocus = FocusNode();
+  final _otpFocus = FocusNode();
 
   bool _loading = false;
   bool _success = false;
+  bool _verified = false;
   String? _error;
 
   @override
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _otp.dispose();
     _passwordFocus.dispose();
+    _otpFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _verifyOtp() async {
+    final l10n = context.l10n;
+    final code = _otp.text.trim();
+    if (code.length != 6) {
+      setState(() => _error = l10n.tr('invalid_otp_code'));
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await Supabase.instance.client.auth.verifyOTP(
+        email: _email.text.trim(),
+        token: code,
+        type: OtpType.signup,
+      );
+      if (!mounted) return;
+      setState(() {
+        _verified = true;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = l10n.tr('invalid_otp_code');
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _registerWithGoogle() async {
@@ -54,6 +91,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
+    final l10n = context.l10n;
     setState(() {
       _loading = true;
       _error = null;
@@ -64,9 +102,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final res = await Supabase.instance.client.auth.signUp(
         email: _email.text.trim(),
         password: _password.text,
+        emailRedirectTo: kIsWeb ? null : 'com.allonssy.app://login-callback',
       );
 
-      if (res.user == null) throw 'Sign up failed';
+      if (res.user == null) throw l10n.tr('sign_up_failed');
 
       final identities = res.user!.identities ?? const [];
       final looksLikeExistingUser = res.session == null &&
@@ -74,7 +113,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           (res.user!.email?.trim().toLowerCase() == _email.text.trim().toLowerCase());
 
       if (looksLikeExistingUser) {
-        throw 'An account with this email already exists. Please log in instead.';
+        throw l10n.tr('email_exists_login');
       }
 
       // If email verification is enabled, session might be null
@@ -97,6 +136,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
     return Scaffold(
       body: Container(
@@ -130,7 +170,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       width: 64,
                       height: 64,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.14),
+                        color: Colors.white.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Icon(
@@ -140,12 +180,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Column(
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // "Join" line
                         Text(
-                          'Join',
+                          l10n.tr('join'),
                           style: TextStyle(
                             fontSize: 40,
                             height: 1,
@@ -155,17 +194,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                         SizedBox(height: 8),
-                        // Brand icon + "Allonssy!" on same line
-                        BrandLockup(height: 46),
+                        const BrandLockup(height: 46),
                       ],
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'Create your account and start discovering nearby posts, local offers, food ads, and trusted community updates.',
+                      l10n.tr('register_intro'),
                       style: TextStyle(
                         fontSize: 16,
                         height: 1.5,
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -173,10 +211,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       spacing: 10,
                       runSpacing: 10,
                       children: [
-                        _brandChip('Create profile'),
-                        _brandChip('Share locally'),
-                        _brandChip('Find nearby deals'),
-                        _brandChip('Chat safely'),
+                        _brandChip(l10n.tr('create_profile')),
+                        _brandChip(l10n.tr('share_locally')),
+                        _brandChip(l10n.tr('find_nearby_deals')),
+                        _brandChip(l10n.tr('chat_safely')),
                       ],
                     ),
                   ],
@@ -189,7 +227,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(28),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.92),
+                      color: Colors.white.withValues(alpha: 0.92),
                       borderRadius: BorderRadius.circular(28),
                       border: Border.all(color: const Color(0xFFE6DDCE)),
                       boxShadow: const [
@@ -204,33 +242,96 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ? Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
-                                Icons.mark_email_read_outlined,
-                                color: Color(0xFFCC7A00),
+                              Icon(
+                                _verified
+                                    ? Icons.verified_outlined
+                                    : Icons.mark_email_read_outlined,
+                                color: _verified
+                                    ? const Color(0xFF147A74)
+                                    : const Color(0xFFCC7A00),
                                 size: 64,
                               ),
                               const SizedBox(height: 24),
                               Text(
-                                'Check your email',
+                                _verified
+                                    ? l10n.tr('verification_success')
+                                    : l10n.tr('check_your_email'),
                                 style: theme.textTheme.headlineSmall?.copyWith(
                                   fontWeight: FontWeight.w800,
                                 ),
+                                textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 12),
-                              Text(
-                                'We have sent a verification link to ${_email.text}. Please click the link to confirm your account.',
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                  height: 1.5,
+                              if (!_verified) ...[
+                                Text(
+                                  l10n.tr(
+                                    'verification_email_sent',
+                                    args: {'email': _email.text},
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                    height: 1.5,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 32),
+                                const SizedBox(height: 24),
+                                TextField(
+                                  controller: _otp,
+                                  focusNode: _otpFocus,
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
+                                  maxLength: 6,
+                                  style: const TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 10,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: '000000',
+                                    hintStyle: const TextStyle(
+                                      letterSpacing: 10,
+                                      color: Color(0xFFBBBBBB),
+                                    ),
+                                    labelText: l10n.tr('verification_code'),
+                                    counterText: '',
+                                  ),
+                                  onSubmitted: (_) {
+                                    if (!_loading) _verifyOtp();
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                                if (_error != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: Text(
+                                      _error!,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                          color: Color(0xFFD92D20)),
+                                    ),
+                                  ),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton(
+                                    onPressed: _loading ? null : _verifyOtp,
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor:
+                                          const Color(0xFF147A74),
+                                    ),
+                                    child: Text(
+                                      _loading
+                                          ? l10n.tr('verifying')
+                                          : l10n.tr('verify_email'),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                              ],
                               SizedBox(
                                 width: double.infinity,
-                                child: FilledButton(
+                                child: OutlinedButton(
                                   onPressed: () => context.go('/login'),
-                                  child: const Text('Return to login'),
+                                  child: Text(l10n.tr('return_to_login')),
                                 ),
                               ),
                             ],
@@ -240,14 +341,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Create account',
+                                l10n.tr('create_account'),
                                 style: theme.textTheme.headlineSmall?.copyWith(
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'Start your local profile in a few seconds.',
+                                l10n.tr('start_local_profile'),
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
@@ -258,8 +359,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 keyboardType: TextInputType.emailAddress,
                                 textInputAction: TextInputAction.next,
                                 onSubmitted: (_) => _passwordFocus.requestFocus(),
-                                decoration: const InputDecoration(
-                                  labelText: 'Email',
+                                decoration: InputDecoration(
+                                  labelText: l10n.tr('email'),
                                   prefixIcon: Padding(
                                     padding: EdgeInsets.all(14),
                                     child: AuthFieldGlyph(
@@ -277,8 +378,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 onSubmitted: (_) {
                                   if (!_loading) _register();
                                 },
-                                decoration: const InputDecoration(
-                                  labelText: 'Password',
+                                decoration: InputDecoration(
+                                  labelText: l10n.tr('password'),
                                   prefixIcon: Padding(
                                     padding: EdgeInsets.all(14),
                                     child: AuthFieldGlyph(
@@ -300,7 +401,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 width: double.infinity,
                                 child: FilledButton(
                                   onPressed: _loading ? null : _register,
-                                  child: Text(_loading ? 'Creating...' : 'Create account'),
+                                  child: Text(
+                                    _loading
+                                        ? l10n.tr('creating')
+                                        : l10n.tr('create_account'),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 10),
@@ -318,7 +423,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     padding: const EdgeInsets.symmetric(vertical: 14),
                                   ),
                                   icon: const GoogleMark(size: 22),
-                                  label: const Text('Continue with Google'),
+                                  label: Text(l10n.tr('continue_with_google')),
                                 ),
                               ),
                               const SizedBox(height: 10),
@@ -326,7 +431,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 width: double.infinity,
                                 child: OutlinedButton(
                                   onPressed: () => context.go('/login'),
-                                  child: const Text('Back to login'),
+                                  child: Text(l10n.tr('back_to_login')),
                                 ),
                               ),
                             ],
@@ -358,12 +463,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    registerCard,
-                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: brandPanel,
                     ),
+                    const SizedBox(height: 16),
+                    registerCard,
                   ],
                 ),
               );
@@ -378,9 +483,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
+        color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withOpacity(0.16)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
       ),
       child: Text(
         label,

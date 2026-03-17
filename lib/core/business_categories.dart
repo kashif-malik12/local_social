@@ -22,47 +22,51 @@ const List<String> businessMainCategories = [
 ];
 
 String businessCategoryLabel(String value) {
+  return localizedBusinessCategoryLabel(value);
+}
+
+String localizedBusinessCategoryLabel(String value, {bool isFrench = false}) {
   switch (value) {
     case 'it_software':
-      return 'IT & Software';
+      return isFrench ? 'Informatique et logiciels' : 'IT & Software';
     case 'legal_services':
-      return 'Legal Services';
+      return isFrench ? 'Services juridiques' : 'Legal Services';
     case 'banking_finance':
-      return 'Banking & Finance';
+      return isFrench ? 'Banque et finance' : 'Banking & Finance';
     case 'accounting':
-      return 'Accountant';
+      return isFrench ? 'Comptabilite' : 'Accountant';
     case 'consulting':
-      return 'Consulting';
+      return isFrench ? 'Conseil' : 'Consulting';
     case 'brokerage':
-      return 'Broker';
+      return isFrench ? 'Courtage' : 'Broker';
     case 'dealership':
-      return 'Dealer';
+      return isFrench ? 'Concessionnaire' : 'Dealer';
     case 'trader':
-      return 'Trader';
+      return isFrench ? 'Commerce' : 'Trader';
     case 'manufacturer':
-      return 'Manufacturer';
+      return isFrench ? 'Fabrication' : 'Manufacturer';
     case 'auto_garage':
-      return 'Auto Garage';
+      return isFrench ? 'Garage auto' : 'Auto Garage';
     case 'notary':
-      return 'Notary';
+      return isFrench ? 'Notaire' : 'Notary';
     case 'real_estate':
-      return 'Real Estate';
+      return isFrench ? 'Immobilier' : 'Real Estate';
     case 'health_wellness':
-      return 'Health & Wellness';
+      return isFrench ? 'Sante et bien-etre' : 'Health & Wellness';
     case 'education_training':
-      return 'Education & Training';
+      return isFrench ? 'Education et formation' : 'Education & Training';
     case 'marketing_media':
-      return 'Marketing & Media';
+      return isFrench ? 'Marketing et medias' : 'Marketing & Media';
     case 'construction_trades':
-      return 'Construction & Trades';
+      return isFrench ? 'Construction et metiers' : 'Construction & Trades';
     case 'home_services':
-      return 'Home Services';
+      return isFrench ? 'Services a domicile' : 'Home Services';
     case 'logistics_transport':
-      return 'Logistics & Transport';
+      return isFrench ? 'Logistique et transport' : 'Logistics & Transport';
     case 'beauty_personal_care':
-      return 'Beauty & Personal Care';
+      return isFrench ? 'Beaute et soins personnels' : 'Beauty & Personal Care';
     case 'other':
-      return 'Other';
+      return isFrench ? 'Autre' : 'Other';
     default:
       return value;
   }

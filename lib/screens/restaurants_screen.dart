@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/localization/app_localizations.dart';
 import '../core/restaurant_categories.dart';
 import '../widgets/global_app_bar.dart';
 import '../widgets/global_bottom_nav.dart';
@@ -145,16 +146,18 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: const GlobalAppBar(
-        title: 'Restaurants',
+      appBar: GlobalAppBar(
+        title: l10n.tr('restaurants'),
         showBackIfPossible: true,
         homeRoute: '/feed',
       ),
@@ -166,7 +169,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
-                hintText: 'Search restaurants...',
+                hintText: l10n.tr('search_restaurants'),
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _search.isEmpty
                     ? null
@@ -191,7 +194,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
             child: DropdownButtonFormField<String>(
               initialValue: _selectedCategory,
               items: [
-                const DropdownMenuItem(value: 'all', child: Text('All types')),
+                DropdownMenuItem(value: 'all', child: Text(l10n.tr('all_types'))),
                 ...restaurantMainCategories.map(
                   (c) => DropdownMenuItem(value: c, child: Text(restaurantCategoryLabel(c))),
                 ),
@@ -201,9 +204,9 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
                 setState(() => _selectedCategory = v);
                 _load();
               },
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Restaurant type',
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: l10n.tr('restaurant_category'),
               ),
             ),
           ),
@@ -211,7 +214,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
             child: Row(
               children: [
-                const Text('Distance:'),
+                Text(l10n.tr('distance_label')),
                 Expanded(
                   child: Slider(
                     value: _maxDistanceKm,
@@ -232,9 +235,9 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? Center(child: Text('Error: $_error'))
+                    ? Center(child: Text(l10n.tr('error_with_detail', args: {'error': '$_error'})))
                     : _restaurants.isEmpty
-                        ? const Center(child: Text('No restaurants found'))
+                        ? Center(child: Text(l10n.tr('no_restaurants_found')))
                         : ListView.separated(
                             itemCount: _restaurants.length,
                             separatorBuilder: (_, _) => const Divider(height: 1),
@@ -248,7 +251,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
 
                               final id = (r['id'] ?? '').toString();
                               
-                                final bName = (r['business_name'] as String?) ?? (r['full_name'] as String?) ?? 'Restaurant';
+                                final bName = (r['business_name'] as String?) ?? (r['full_name'] as String?) ?? l10n.tr('restaurant');
                                 final job = r['job_title'] as String?;
                                 final businessProfile = (r['business_profile'] as String?) ?? '';
 
@@ -293,7 +296,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
                                           ),
                                         ),
                                       Text(
-                                        '${(r['restaurant_type'] ?? '').toString().isNotEmpty ? restaurantCategoryLabel((r['restaurant_type'] ?? '').toString()) : 'Restaurant'}'
+                                        '${(r['restaurant_type'] ?? '').toString().isNotEmpty ? restaurantCategoryLabel((r['restaurant_type'] ?? '').toString()) : l10n.tr('restaurant')}'
                                         '${dist != null ? ' • ${dist.toStringAsFixed(1)} km' : ''}'
                                         '${(r['city'] ?? '').toString().isNotEmpty ? ' • ${(r['city'] ?? '').toString()}' : ''}',
                                       ),

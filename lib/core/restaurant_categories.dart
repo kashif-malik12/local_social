@@ -12,27 +12,31 @@ const List<String> restaurantMainCategories = [
 ];
 
 String restaurantCategoryLabel(String value) {
+  return localizedRestaurantCategoryLabel(value);
+}
+
+String localizedRestaurantCategoryLabel(String value, {bool isFrench = false}) {
   switch (value) {
     case 'italian':
-      return 'Italian';
+      return isFrench ? 'Italien' : 'Italian';
     case 'indian':
-      return 'Indian';
+      return isFrench ? 'Indien' : 'Indian';
     case 'chinese':
-      return 'Chinese';
+      return isFrench ? 'Chinois' : 'Chinese';
     case 'japanese':
-      return 'Japanese';
+      return isFrench ? 'Japonais' : 'Japanese';
     case 'middle_eastern':
-      return 'Middle Eastern';
+      return isFrench ? 'Moyen-Orient' : 'Middle Eastern';
     case 'fast_food':
-      return 'Fast Food';
+      return isFrench ? 'Restauration rapide' : 'Fast Food';
     case 'cafe_bakery':
-      return 'Cafe & Bakery';
+      return isFrench ? 'Cafe et boulangerie' : 'Cafe & Bakery';
     case 'takeaway':
-      return 'Takeaway';
+      return isFrench ? 'A emporter' : 'Takeaway';
     case 'fine_dining':
-      return 'Fine Dining';
+      return isFrench ? 'Gastronomique' : 'Fine Dining';
     case 'other':
-      return 'Other';
+      return isFrench ? 'Autre' : 'Other';
     default:
       return value;
   }

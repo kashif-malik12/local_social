@@ -69,7 +69,7 @@ Do not add new APIs to the key without documenting it here and in `decision_log.
 
 | File | Purpose |
 |------|---------|
-| `docs/decision_log.md` | Full project decisions and technical context |
-| `docs/critical AI starter.md` | This file — rules and release process |
+| `decision_log.md` | Full project decisions and technical context |
+| `critical AI starter.md` | This file — rules and release process |
 | `scripts/build_web.sh` | Web build + service worker generation |
 | `.env.local.example` | Template for local environment setup |

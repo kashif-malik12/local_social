@@ -79,8 +79,9 @@ class _FoodAdDetailScreenState extends State<FoodAdDetailScreen> {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -98,8 +99,9 @@ class _FoodAdDetailScreenState extends State<FoodAdDetailScreen> {
       if (!mounted) return;
       setState(() => _commentsError = e.toString());
     } finally {
-      if (!mounted) return;
-      setState(() => _commentsLoading = false);
+      if (mounted) {
+        setState(() => _commentsLoading = false);
+      }
     }
   }
 
@@ -265,7 +267,7 @@ class _FoodAdDetailScreenState extends State<FoodAdDetailScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF0F766E).withOpacity(0.08),
+                            color: const Color(0xFF0F766E).withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: const Text(
@@ -384,7 +386,7 @@ class _FoodAdDetailScreenState extends State<FoodAdDetailScreen> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F766E).withOpacity(0.1),
+                  color: const Color(0xFF0F766E).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(Icons.forum_outlined, color: Color(0xFF0F766E)),

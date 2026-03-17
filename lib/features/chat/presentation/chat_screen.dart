@@ -304,7 +304,7 @@ class _ChatScreenState extends State<ChatScreen> {
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: isMe ? Colors.blue.withOpacity(0.15) : Colors.grey.withOpacity(0.15),
+        color: isMe ? Colors.blue.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -325,7 +325,7 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(

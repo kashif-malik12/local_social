@@ -67,9 +67,11 @@ class ChatMessageCodec {
     final parts = <String>[];
     if (payload.text.trim().isNotEmpty) parts.add(payload.text.trim());
     if (payload.hasImage) parts.add('Photo');
-    if (payload.hasFile) parts.add(payload.fileName?.trim().isNotEmpty == true
+    if (payload.hasFile) {
+      parts.add(payload.fileName?.trim().isNotEmpty == true
         ? 'File: ${payload.fileName!.trim()}'
         : 'File');
+    }
     return parts.join(' • ');
   }
 }

@@ -82,7 +82,7 @@ class _LocalVideoPreviewState extends State<LocalVideoPreview> {
         height: widget.height,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.08),
+          color: Colors.black.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(18),
         ),
         child: const CircularProgressIndicator(),
@@ -94,7 +94,7 @@ class _LocalVideoPreviewState extends State<LocalVideoPreview> {
         height: widget.height,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.08),
+          color: Colors.black.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(18),
         ),
         child: const Text('Video preview unavailable'),
@@ -135,7 +135,7 @@ class _LocalVideoPreviewState extends State<LocalVideoPreview> {
                   alignment: Alignment.center,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.45),
+                      color: Colors.black.withValues(alpha: 0.45),
                       shape: BoxShape.circle,
                     ),
                     child: Padding(

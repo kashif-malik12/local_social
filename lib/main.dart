@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:http/http.dart' as http;
@@ -11,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/app.dart';
 import 'core/auth/release_auth_storage.dart';
 import 'core/config/env.dart';
+import 'core/localization/app_localizations.dart';
 import 'services/push_notification_service.dart';
 
 Future<void> main() async {
@@ -24,23 +26,17 @@ Future<void> main() async {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     }
 
-    final releaseAndroidWorkaround =
-        !kIsWeb && kReleaseMode && defaultTargetPlatform == TargetPlatform.android;
-    final authStorage = releaseAndroidWorkaround
-        ? createReleaseAuthStorage(
-            'sb-${Uri.parse(Env.supabaseUrl).host.split(".").first}-auth-token',
-          )
-        : null;
+    final authStorage = createReleaseAuthStorage(
+      'sb-${Uri.parse(Env.supabaseUrl).host.split(".").first}-auth-token',
+    );
 
     await Supabase.initialize(
       url: Env.supabaseUrl,
       anonKey: Env.supabaseAnonKey,
-      authOptions: releaseAndroidWorkaround
-          ? FlutterAuthClientOptions(
-              localStorage: authStorage,
-              pkceAsyncStorage: createReleasePkceStorage(),
-            )
-          : const FlutterAuthClientOptions(),
+      authOptions: FlutterAuthClientOptions(
+        localStorage: authStorage,
+        pkceAsyncStorage: createReleasePkceStorage(),
+      ),
       // Enforce a 10 s request timeout so a slow / unreachable VPS never
       // causes an ANR by blocking Supabase.initialize() indefinitely.
       httpClient: _TimeoutHttpClient(),
@@ -81,6 +77,13 @@ class _StartupErrorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: Scaffold(
         backgroundColor: const Color(0xFFF5F1E8),
         body: SafeArea(

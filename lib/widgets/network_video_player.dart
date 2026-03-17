@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../app/router.dart';
 import '../services/app_settings_service.dart';
@@ -32,7 +33,9 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
   bool _loading = true;
   bool _failed = false;
   bool _muted = false;
+  bool _userPaused = false;
   ModalRoute<dynamic>? _route;
+  final _visibilityKey = UniqueKey();
 
   @override
   void initState() {
@@ -44,6 +47,11 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Pause when hidden inside an IndexedStack (tab switch).
+    if (!TickerMode.valuesOf(context).enabled) {
+      _pauseSafely();
+    }
+    // Route observer subscription for push/pop pausing.
     final route = ModalRoute.of(context);
     if (_route == route) return;
     if (_route is PageRoute) {
@@ -138,7 +146,7 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
         height: 220,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.05),
+          color: Colors.black.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
         ),
         child: const CircularProgressIndicator(),
@@ -150,7 +158,7 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
         height: 180,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.05),
+          color: Colors.black.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Text('Video unavailable'),
@@ -159,7 +167,20 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
 
     final aspectRatio = controller.value.aspectRatio == 0 ? 16 / 9 : controller.value.aspectRatio;
     final expandToFill = widget.maxHeight == double.infinity;
-    return ClipRRect(
+    return VisibilityDetector(
+      key: _visibilityKey,
+      onVisibilityChanged: (info) {
+        if (!mounted) return;
+        if (info.visibleFraction < 0.3) {
+          _pauseSafely();
+        } else if (!_userPaused && info.visibleFraction >= 0.3) {
+          final shouldAutoplay = widget.autoplay ?? AppSettingsService.currentVideoAutoplayEnabled();
+          if (shouldAutoplay && !controller.value.isPlaying) {
+            controller.play();
+          }
+        }
+      },
+      child: ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Container(
         constraints: BoxConstraints(maxHeight: widget.maxHeight),
@@ -186,8 +207,10 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
               onTap: () {
                 if (controller.value.isPlaying) {
                   controller.pause();
+                  _userPaused = true;
                 } else {
                   controller.play();
+                  _userPaused = false;
                 }
                 setState(() {});
               },
@@ -196,7 +219,7 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
                 alignment: Alignment.center,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.45),
+                    color: Colors.black.withValues(alpha: 0.45),
                     shape: BoxShape.circle,
                   ),
                   child: Padding(
@@ -214,19 +237,21 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
               Positioned(
                 top: widget.muteTopOffset,
                 right: 12,
-                child: Material(
-                  color: Colors.black.withOpacity(0.5),
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: _toggleMute,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        _muted ? Icons.volume_off : Icons.volume_up,
-                        color: Colors.white,
-                        size: 18,
-                      ),
+                child: GestureDetector(
+                  onTap: _toggleMute,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      _muted ? Icons.volume_off : Icons.volume_up,
+                      color: Colors.white,
+                      size: 20,
                     ),
                   ),
                 ),
@@ -234,6 +259,8 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
           ],
         ),
       ),
+      ),
     );
   }
 }
+

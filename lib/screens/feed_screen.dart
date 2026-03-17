@@ -21,6 +21,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app/chat_singletons.dart';
 import '../core/food_categories.dart';
 import '../core/create_post_launcher.dart';
+import '../core/localization/app_localizations.dart';
 import '../models/post_model.dart';
 import '../core/business_categories.dart';
 import '../core/market_categories.dart';
@@ -416,7 +417,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 
   Widget _notifBell() {
     return IconButton(
-      tooltip: 'Notifications',
+      tooltip: context.l10n.tr('notifications'),
       onPressed: () async {
         await context.push('/notifications');
         await _refreshUnreadNotifs();
@@ -903,11 +904,12 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         _error = e.toString();
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _loadingMore = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadingMore = false;
+        });
+      }
     }
   }
 
@@ -941,18 +943,22 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                 );
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Post shared')),
+                  SnackBar(content: Text(context.l10n.tr('post_shared'))),
                 );
                 await _load(reset: true);
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Share error: $e')),
+                  SnackBar(
+                    content: Text(
+                      context.l10n.tr('share_error', args: {'error': '$e'}),
+                    ),
+                  ),
                 );
               }
             },
             icon: const Icon(Icons.share_outlined),
-            label: const Text('Share'),
+            label: Text(context.l10n.tr('share')),
           ),
         ],
       );
@@ -974,6 +980,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             TextButton.icon(
               onPressed: () async {
                 final messenger = ScaffoldMessenger.of(context);
+                final l10n = context.l10n;
                 try {
                   if (liked) {
                     await react.unlike(p.id);
@@ -985,7 +992,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                 } catch (e) {
                   if (!mounted) return;
                   messenger.showSnackBar(
-                    SnackBar(content: Text('Like error: $e')),
+                    SnackBar(
+                      content: Text(
+                        l10n.tr('like_error', args: {'error': '$e'}),
+                      ),
+                    ),
                   );
                 }
               },
@@ -1003,6 +1014,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               TextButton.icon(
                 onPressed: () async {
                   final messenger = ScaffoldMessenger.of(context);
+                  final l10n = context.l10n;
                   try {
                     await postService.sharePost(
                       originalPostId: p.id,
@@ -1014,18 +1026,22 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                     );
                     if (!mounted) return;
                     messenger.showSnackBar(
-                      const SnackBar(content: Text('Post shared')),
+                      SnackBar(content: Text(l10n.tr('post_shared'))),
                     );
                     await _load(reset: true);
                   } catch (e) {
                     if (!mounted) return;
                     messenger.showSnackBar(
-                      SnackBar(content: Text('Share error: $e')),
+                      SnackBar(
+                        content: Text(
+                          l10n.tr('share_error', args: {'error': '$e'}),
+                        ),
+                      ),
                     );
                   }
                 },
                 icon: const Icon(Icons.share_outlined),
-                label: const Text('Share'),
+                label: Text(context.l10n.tr('share')),
               ),
             ],
           ],
@@ -1055,11 +1071,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   String? _orgKindLabel(String value) {
     switch (value) {
       case 'government':
-        return 'Government';
+        return context.l10n.tr('government');
       case 'nonprofit':
-        return 'Non-profit';
+        return context.l10n.tr('non_profit');
       case 'news_agency':
-        return 'News agency';
+        return context.l10n.tr('news_agency');
       default:
         return value.trim().isEmpty ? null : value;
     }
@@ -1351,6 +1367,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 
   Widget _buildFilters() {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
       child: Container(
@@ -1375,7 +1392,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Discover nearby',
+              l10n.tr('discover_nearby'),
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
@@ -1395,7 +1412,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                 FilledButton.tonalIcon(
                   onPressed: _openFilterSheet,
                   icon: const Icon(Icons.tune_rounded, size: 18),
-                  label: const Text('Filters'),
+                  label: Text(l10n.tr('filters')),
                 ),
                 FilledButton.icon(
                   onPressed: () async {
@@ -1404,7 +1421,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                     if (res == true) _load(reset: true);
                   },
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Post'),
+                  label: Text(l10n.tr('post_label')),
                 ),
               ],
             ),
@@ -1415,17 +1432,17 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               children: [
                 _buildQuickLinkButton(
                   icon: Icons.storefront_outlined,
-                  label: 'Marketplace',
+                  label: l10n.tr('marketplace'),
                   onPressed: () => context.push('/marketplace'),
                 ),
                 _buildQuickLinkButton(
                   icon: Icons.miscellaneous_services_outlined,
-                  label: 'Gigs',
+                  label: l10n.tr('gigs'),
                   onPressed: () => context.push('/gigs'),
                 ),
                 _buildQuickLinkButton(
                   icon: Icons.fastfood,
-                  label: 'Foods',
+                  label: l10n.tr('foods'),
                   onPressed: () => context.push('/foods'),
                 ),
               ],
@@ -1437,12 +1454,12 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               children: [
                 _buildQuickLinkButton(
                   icon: Icons.business,
-                  label: 'Businesses',
+                  label: l10n.tr('businesses'),
                   onPressed: () => context.push('/businesses'),
                 ),
                 _buildQuickLinkButton(
                   icon: Icons.restaurant_menu,
-                  label: 'Restaurants',
+                  label: l10n.tr('restaurants'),
                   onPressed: () => context.push('/restaurants'),
                 ),
               ],
@@ -1489,7 +1506,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F766E).withOpacity(0.1),
+                  color: const Color(0xFF0F766E).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(
@@ -1609,6 +1626,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _openFilterSheet() async {
+    final l10n = context.l10n;
     var draftGeneralEnabled = _generalPostsEnabled;
     var draftGeneralScope = _generalPostsScope;
     var draftMarketplaceEnabled = _marketplaceEnabled;
@@ -1701,10 +1719,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                                 draftOrganizationKinds.clear();
                               });
                             },
-                            child: const Text('Reset'),
+                            child: Text(l10n.tr('reset')),
                           ),
                           IconButton(
-                            tooltip: 'Close',
+                            tooltip: l10n.tr('close'),
                             onPressed: () => Navigator.of(context).pop(),
                             icon: const Icon(Icons.close),
                           ),
@@ -1712,8 +1730,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                       ),
                       const SizedBox(height: 14),
                       _buildFilterSectionCard(
-                        title: 'General posts',
-                        subtitle: 'Normal feed posts only.',
+                        title: l10n.tr('general_posts'),
+                        subtitle: l10n.tr('normal_feed_posts_only'),
                         enabled: draftGeneralEnabled,
                         onEnabledChanged: (value) {
                           setSheetState(() => draftGeneralEnabled = value);
@@ -1727,8 +1745,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                       ),
                       const SizedBox(height: 10),
                       _buildFilterSectionCard(
-                        title: 'Marketplace posts',
-                        subtitle: 'Buying, selling, and product categories.',
+                        title: l10n.tr('marketplace_posts'),
+                        subtitle: l10n.tr('buying_selling_product_categories'),
                         enabled: draftMarketplaceEnabled,
                         onEnabledChanged: (value) {
                           setSheetState(() => draftMarketplaceEnabled = value);
@@ -1737,17 +1755,17 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildMultiSelectSection(
-                              title: 'Marketplace type',
-                              options: const [
-                                ('buying', 'Buying'),
-                                ('selling', 'Selling'),
+                              title: l10n.tr('marketplace_type'),
+                              options: [
+                                ('buying', l10n.tr('buying')),
+                                ('selling', l10n.tr('selling')),
                               ],
                               selected: draftMarketplaceIntents,
                               setSheetState: setSheetState,
                             ),
                             const SizedBox(height: 12),
                             _buildMultiSelectSection(
-                              title: 'Marketplace categories',
+                              title: l10n.tr('marketplace_categories'),
                               options: marketMainCategories
                                   .map((c) => (c, marketCategoryLabel(c)))
                                   .toList(),
@@ -1756,15 +1774,15 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                             ),
                             if (draftMarketplaceCategories.isEmpty) ...[
                               const SizedBox(height: 8),
-                              _buildFilterWarning('Select at least one category.'),
+                              _buildFilterWarning(l10n.tr('select_at_least_one_category')),
                             ],
                           ],
                         ),
                       ),
                       const SizedBox(height: 10),
                       _buildFilterSectionCard(
-                        title: 'Gig posts',
-                        subtitle: 'Service offers, requests, and service categories.',
+                        title: l10n.tr('gig_posts'),
+                        subtitle: l10n.tr('service_offers_requests_and_categories'),
                         enabled: draftGigsEnabled,
                         onEnabledChanged: (value) {
                           setSheetState(() => draftGigsEnabled = value);
@@ -1773,17 +1791,17 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildMultiSelectSection(
-                              title: 'Gig type',
-                              options: const [
-                                ('service_offer', 'Offering'),
-                                ('service_request', 'Requesting'),
+                              title: l10n.tr('gig_type'),
+                              options: [
+                                ('service_offer', l10n.tr('offering')),
+                                ('service_request', l10n.tr('requesting')),
                               ],
                               selected: draftGigTypes,
                               setSheetState: setSheetState,
                             ),
                             const SizedBox(height: 12),
                             _buildMultiSelectSection(
-                              title: 'Service categories',
+                              title: l10n.tr('service_categories'),
                               options: serviceMainCategories
                                   .map((c) => (c, serviceCategoryLabel(c)))
                                   .toList(),
@@ -1792,15 +1810,15 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                             ),
                             if (draftGigCategories.isEmpty) ...[
                               const SizedBox(height: 8),
-                              _buildFilterWarning('Select at least one category.'),
+                              _buildFilterWarning(l10n.tr('select_at_least_one_category')),
                             ],
                           ],
                         ),
                       ),
                       const SizedBox(height: 10),
                       _buildFilterSectionCard(
-                        title: 'Lost & found',
-                        subtitle: 'Show or hide lost-and-found posts.',
+                        title: l10n.tr('lost_and_found'),
+                        subtitle: l10n.tr('show_or_hide_lost_and_found_posts'),
                         enabled: draftLostFoundEnabled,
                         onEnabledChanged: (value) {
                           setSheetState(() => draftLostFoundEnabled = value);
@@ -1814,8 +1832,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                       ),
                       const SizedBox(height: 10),
                       _buildFilterSectionCard(
-                        title: 'Food ads',
-                        subtitle: 'Food posts with separate food categories.',
+                        title: l10n.tr('food_ads'),
+                        subtitle: l10n.tr('food_posts_with_separate_categories'),
                         enabled: draftFoodAdsEnabled,
                         onEnabledChanged: (value) {
                           setSheetState(() => draftFoodAdsEnabled = value);
@@ -1824,7 +1842,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildMultiSelectSection(
-                              title: 'Food categories',
+                              title: l10n.tr('food_category'),
                               options: foodMainCategories
                                   .map((c) => (c, foodCategoryLabel(c)))
                                   .toList(),
@@ -1833,15 +1851,15 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                             ),
                             if (draftFoodCategories.isEmpty) ...[
                               const SizedBox(height: 8),
-                              _buildFilterWarning('Select at least one category.'),
+                              _buildFilterWarning(l10n.tr('select_at_least_one_category')),
                             ],
                           ],
                         ),
                       ),
                       const SizedBox(height: 10),
                       _buildFilterSectionCard(
-                        title: 'Organizations',
-                        subtitle: 'Show organization posts by subtype.',
+                        title: l10n.tr('organizations'),
+                        subtitle: l10n.tr('show_organization_posts_by_subtype'),
                         enabled: draftOrganizationsEnabled,
                         onEnabledChanged: (value) {
                           setSheetState(() => draftOrganizationsEnabled = value);
@@ -1850,18 +1868,18 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildMultiSelectSection(
-                              title: 'Organization types',
-                              options: const [
-                                ('government', 'Government'),
-                                ('nonprofit', 'Non-profit'),
-                                ('news_agency', 'News agency'),
+                              title: l10n.tr('organization_types'),
+                              options: [
+                                ('government', l10n.tr('government')),
+                                ('nonprofit', l10n.tr('non_profit')),
+                                ('news_agency', l10n.tr('news_agency')),
                               ],
                               selected: draftOrganizationKinds,
                               setSheetState: setSheetState,
                             ),
                             if (draftOrganizationKinds.isEmpty) ...[
                               const SizedBox(height: 8),
-                              _buildFilterWarning('Select at least one type.'),
+                              _buildFilterWarning(l10n.tr('select_at_least_one_type')),
                             ],
                           ],
                         ),
@@ -1905,7 +1923,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                             _saveFilters();
                             _load(reset: true);
                           },
-                          child: const Text('Apply filters'),
+                          child: Text(l10n.tr('apply_filters')),
                         ),
                       ),
                     ],
@@ -1923,72 +1941,91 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   String _sectionScopeLabel(String value) {
     switch (value) {
       case 'public':
-        return 'Public';
+        return context.l10n.tr('public');
       case 'following':
-        return 'Following';
+        return context.l10n.tr('following');
       case 'all':
       default:
-        return 'Public + Following';
+        return context.l10n.tr('visibility_public_following');
     }
   }
 
   String _feedWhatShowing() {
+    final l10n = context.l10n;
     final sections = <String>[];
     if (_generalPostsEnabled) {
-      sections.add('general posts (${_sectionScopeLabel(_generalPostsScope).toLowerCase()})');
+      sections.add(
+        '${l10n.tr('general_posts').toLowerCase()} (${_sectionScopeLabel(_generalPostsScope).toLowerCase()})',
+      );
     }
     if (_marketplaceEnabled) {
       final intentText = _selectedMarketplaceIntents.isEmpty
-          ? 'all marketplace posts'
+          ? l10n.tr('all_marketplace_posts')
           : _selectedMarketplaceIntents.map(_intentLabel).join(' & ').toLowerCase();
       final categoryText = _selectedMarketplaceCategories.isEmpty
-          ? 'no categories selected'
+          ? l10n.tr('no_categories_selected')
           : _selectedMarketplaceCategories.map(marketCategoryLabel).join(', ');
       sections.add('$intentText in $categoryText');
     }
     if (_gigsEnabled) {
       final gigText = _selectedGigTypes.isEmpty
-          ? 'all gigs'
+          ? l10n.tr('all_gigs')
           : _selectedGigTypes.map(_postTypeLabel).join(' & ').toLowerCase();
       final categoryText = _selectedGigCategories.isEmpty
-          ? 'no categories selected'
+          ? l10n.tr('no_categories_selected')
           : _selectedGigCategories.map(serviceCategoryLabel).join(', ');
-      sections.add('gigs $gigText in $categoryText');
+      sections.add(
+        l10n.tr(
+          'gigs_in_categories',
+          args: {'types': gigText, 'categories': categoryText},
+        ),
+      );
     }
     if (_lostFoundEnabled) {
-      sections.add('lost & found (${_sectionScopeLabel(_lostFoundScope).toLowerCase()})');
+      sections.add(
+        '${l10n.tr('lost_and_found').toLowerCase()} (${_sectionScopeLabel(_lostFoundScope).toLowerCase()})',
+      );
     }
     if (_foodAdsEnabled) {
       final categoryText = _selectedFoodCategories.isEmpty
-          ? 'no categories selected'
+          ? l10n.tr('no_categories_selected')
           : _selectedFoodCategories.map(foodCategoryLabel).join(', ');
-      sections.add('food ads in $categoryText');
+      sections.add(
+        l10n.tr(
+          'food_ads_in_categories',
+          args: {'categories': categoryText},
+        ),
+      );
     }
     if (_organizationsEnabled) {
       final orgText = _selectedOrganizationKinds.isEmpty
-          ? 'all organization posts'
+          ? l10n.tr('all_organization_posts')
           : _selectedOrganizationKinds.map(_organizationKindLabel).join(', ').toLowerCase();
       sections.add(orgText);
     }
 
     final radiusKm = (_myProfileSummary?['radius_km'] as num?)?.toInt();
-    final sectionText = sections.isEmpty ? 'no sections selected' : sections.join(' • ');
+    final sectionText =
+        sections.isEmpty ? l10n.tr('no_sections_selected') : sections.join(' • ');
     if (radiusKm != null) {
-      return 'You are seeing $sectionText. Public posts radius is set in profile: $radiusKm km';
+      return l10n.tr(
+        'you_are_seeing_with_radius',
+        args: {'sections': sectionText, 'radius': '$radiusKm'},
+      );
     }
-    return 'You are seeing $sectionText';
+    return l10n.tr('you_are_seeing', args: {'sections': sectionText});
   }
 
   String _postTypeLabel(String value) {
     switch (value) {
       case 'service_offer':
-        return 'offering';
+        return context.l10n.tr('offering');
       case 'service_request':
-        return 'requesting';
+        return context.l10n.tr('requesting');
       case 'lost_found':
-        return 'Lost & found';
+        return context.l10n.tr('lost_and_found');
       case 'food_ad':
-        return 'Food ad';
+        return context.l10n.tr('food_ads');
       default:
         return value;
     }
@@ -1997,11 +2034,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   String _organizationKindLabel(String value) {
     switch (value) {
       case 'government':
-        return 'Government';
+        return context.l10n.tr('government');
       case 'nonprofit':
-        return 'Non-profit';
+        return context.l10n.tr('non_profit');
       case 'news_agency':
-        return 'News agency';
+        return context.l10n.tr('news_agency');
       default:
         return value;
     }
@@ -2085,20 +2122,20 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     required String selected,
     required ValueChanged<String> onSelected,
   }) {
-    const options = [
-      ('all', 'Public + Following'),
-      ('public', 'Public'),
-      ('following', 'Following'),
+    final options = [
+      ('all', context.l10n.tr('visibility_public_following')),
+      ('public', context.l10n.tr('public')),
+      ('following', context.l10n.tr('following')),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(left: 4, bottom: 6),
           child: Text(
-            'Visibility',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            context.l10n.tr('visibility'),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
           ),
         ),
         Wrap(
@@ -2224,6 +2261,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 
   Widget _buildDesktopSidebar() {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
       child: Column(
@@ -2244,7 +2282,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Feed controls',
+                  l10n.tr('feed_controls'),
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -2255,7 +2293,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                   child: FilledButton.tonalIcon(
                     onPressed: _openFilterSheet,
                     icon: const Icon(Icons.tune_rounded),
-                    label: const Text('Open filters'),
+                    label: Text(l10n.tr('open_filters')),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -2268,7 +2306,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                       if (res == true) _load(reset: true);
                     },
                     icon: const Icon(Icons.add),
-                    label: const Text('Post to feed'),
+                    label: Text(l10n.tr('post_to_feed')),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -2300,7 +2338,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                         _load(reset: true);
                       },
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Reset feed'),
+                     label: Text(l10n.tr('reset_feed')),
                   ),
                 ),
               ],
@@ -2318,7 +2356,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Browse sections',
+                  l10n.tr('browse_sections'),
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -2326,17 +2364,17 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                 const SizedBox(height: 14),
                 _buildSidebarQuickLink(
                   icon: Icons.storefront_outlined,
-                  label: 'Marketplace',
+                  label: l10n.tr('marketplace'),
                   onPressed: () => context.push('/marketplace'),
                 ),
                 _buildSidebarQuickLink(
                   icon: Icons.miscellaneous_services_outlined,
-                  label: 'Gigs',
+                  label: l10n.tr('gigs'),
                   onPressed: () => context.push('/gigs'),
                 ),
                 _buildSidebarQuickLink(
                   icon: Icons.fastfood,
-                  label: 'Foods',
+                  label: l10n.tr('foods'),
                   onPressed: () => context.push('/foods'),
                 ),
               ],
@@ -2344,19 +2382,19 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 18),
           _buildInfoCard(
-            title: 'Local directory',
+            title: l10n.tr('local_directory'),
             child: Column(
               children: [
                 _buildTaskRow(
                   icon: Icons.restaurant_menu,
-                  title: 'Restaurants',
-                  subtitle: 'Browse nearby places to eat.',
+                  title: l10n.tr('restaurants'),
+                  subtitle: l10n.tr('browse_nearby_places_to_eat'),
                   onTap: () => context.push('/restaurants'),
                 ),
                 _buildTaskRow(
                   icon: Icons.business,
-                  title: 'Businesses',
-                  subtitle: 'Explore nearby local businesses.',
+                  title: l10n.tr('businesses'),
+                  subtitle: l10n.tr('explore_nearby_local_businesses'),
                   onTap: () => context.push('/businesses'),
                 ),
               ],
@@ -2410,14 +2448,14 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.45),
+            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
             borderRadius: BorderRadius.circular(18),
           ),
           child: Row(
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
+                backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
                 child: Icon(icon, size: 18, color: theme.colorScheme.primary),
               ),
               const SizedBox(width: 12),
@@ -2449,7 +2487,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildRightSidebar() {
-    final profileName = (_myProfileSummary?['full_name'] ?? 'Your profile')
+    final l10n = context.l10n;
+    final profileName = (_myProfileSummary?['full_name'] ?? context.l10n.tr('my_profile'))
         .toString();
     final incompleteProfile = _profileCompleteness < 100;
     final unreadChats = unreadBadgeController.unread.value;
@@ -2460,11 +2499,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildInfoCard(
-            title: 'Top Trending',
+            title: l10n.tr('top_trending'),
             child: SizedBox(
               height: 420,
               child: _topPosts.isEmpty
-                  ? const Center(child: Text('No top posts yet'))
+                  ? Center(child: Text(l10n.tr('no_top_posts_yet')))
                   : ListView.separated(
                       itemCount: _topPosts.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -2472,7 +2511,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                         final post = _topPosts[index];
                         final title = ((post['market_title'] ?? '').toString().trim().isNotEmpty
                                 ? post['market_title']
-                                : post['content'] ?? 'Post')
+                                : post['content'] ?? l10n.tr('post_label'))
                             .toString()
                             .trim();
                         final imageUrl = (post['image_url'] ?? '').toString();
@@ -2486,7 +2525,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                               color: Theme.of(context)
                                   .colorScheme
                                   .surfaceContainerHighest
-                                  .withOpacity(0.45),
+                                  .withValues(alpha: 0.45),
                               borderRadius: BorderRadius.circular(18),
                             ),
                             child: Row(
@@ -2513,14 +2552,17 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        title.isEmpty ? 'Post' : title,
+                                        title.isEmpty ? l10n.tr('post_label') : title,
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(fontWeight: FontWeight.w700),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        '$engagement engagement',
+                                        l10n.tr(
+                                          'engagement_count',
+                                          args: {'count': '$engagement'},
+                                        ),
                                         style: TextStyle(
                                           fontSize: 12,
                                           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -2539,35 +2581,47 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 18),
           _buildInfoCard(
-            title: 'To do',
+            title: l10n.tr('todo'),
             child: Column(
               children: [
                 if (_pendingOfferConversations > 0)
                   _buildTaskRow(
                     icon: Icons.local_offer_outlined,
-                    title: 'Review offers',
-                    subtitle: '$_pendingOfferConversations conversations need attention.',
+                    title: l10n.tr('review_offers'),
+                    subtitle: l10n.tr(
+                      'conversations_need_attention',
+                      args: {'count': '$_pendingOfferConversations'},
+                    ),
                     onTap: () => context.push('/chats'),
                   ),
                 if (_unreadOfferMessages > 0)
                   _buildTaskRow(
                     icon: Icons.forum_outlined,
-                    title: 'Unread offer messages',
-                    subtitle: '$_unreadOfferMessages unread messages in offer chats.',
+                    title: l10n.tr('unread_offer_messages'),
+                    subtitle: l10n.tr(
+                      'unread_messages_in_offer_chats',
+                      args: {'count': '$_unreadOfferMessages'},
+                    ),
                     onTap: () => context.push('/chats'),
                   ),
                 if (_unreadNotifs > 0)
                   _buildTaskRow(
                     icon: Icons.notifications_active_outlined,
-                    title: 'Notifications',
-                    subtitle: '$_unreadNotifs unread notifications.',
+                    title: l10n.tr('notifications'),
+                    subtitle: l10n.tr(
+                      'unread_notifications',
+                      args: {'count': '$_unreadNotifs'},
+                    ),
                     onTap: () => context.push('/notifications'),
                   ),
                 if (unreadChats > 0)
                   _buildTaskRow(
                     icon: Icons.chat_bubble_outline,
-                    title: 'Unread chats',
-                    subtitle: '$unreadChats unread conversations.',
+                    title: l10n.tr('unread_chats'),
+                    subtitle: l10n.tr(
+                      'unread_conversations',
+                      args: {'count': '$unreadChats'},
+                    ),
                     onTap: () => context.push('/chats'),
                   ),
                 if (_pendingOfferConversations == 0 &&
@@ -2582,11 +2636,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                       color: Theme.of(context)
                           .colorScheme
                           .surfaceContainerHighest
-                          .withOpacity(0.45),
+                          .withValues(alpha: 0.45),
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Text(
-                      'Nothing pending right now.',
+                      l10n.tr('nothing_pending_right_now'),
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
@@ -2598,7 +2652,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           if (incompleteProfile) ...[
             const SizedBox(height: 18),
             _buildInfoCard(
-              title: 'Profile completeness',
+              title: l10n.tr('profile_completeness'),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -2617,12 +2671,15 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '$_profileCompleteness% complete',
+                    l10n.tr(
+                      'profile_complete_percent',
+                      args: {'count': '$_profileCompleteness'},
+                    ),
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Add the missing profile details to improve trust and discovery.',
+                      l10n.tr('improve_trust_and_discovery'),
                     style: TextStyle(
                       fontSize: 12,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -2634,7 +2691,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                     child: OutlinedButton.icon(
                       onPressed: () => context.push('/profile'),
                       icon: const Icon(Icons.person_outline, size: 18),
-                      label: const Text('Open profile'),
+                      label: Text(l10n.tr('open_profile')),
                     ),
                   ),
                 ],
@@ -2915,9 +2972,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.amber.withOpacity(0.14),
+          color: Colors.amber.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.amber.withOpacity(0.4)),
+          border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
         ),
         child: Text(
           text,
@@ -2938,7 +2995,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F766E).withOpacity(0.1),
+        color: const Color(0xFF0F766E).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -2958,13 +3015,13 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: isLocal
-            ? const Color(0xFF0F766E).withOpacity(0.12)
-            : const Color(0xFFCC7A00).withOpacity(0.12),
+            ? const Color(0xFF0F766E).withValues(alpha: 0.12)
+            : const Color(0xFFCC7A00).withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
           color: isLocal
-              ? const Color(0xFF0F766E).withOpacity(0.28)
-              : const Color(0xFFCC7A00).withOpacity(0.28),
+              ? const Color(0xFF0F766E).withValues(alpha: 0.28)
+              : const Color(0xFFCC7A00).withValues(alpha: 0.28),
         ),
       ),
       child: Text(
@@ -3044,12 +3101,12 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             Container(
               constraints: const BoxConstraints(maxHeight: 280),
               width: double.infinity,
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               child: previewImage != null && previewImage.isNotEmpty
                   ? Image.network(
                       previewImage,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: Colors.black12),
+                      errorBuilder: (_, _, _) => Container(color: Colors.black12),
                     )
                   : Container(
                       height: 220,
@@ -3062,11 +3119,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                       ),
                     ),
             ),
-            Container(color: Colors.black.withOpacity(hasVideo ? 0.26 : 0.14)),
+            Container(color: Colors.black.withValues(alpha: hasVideo ? 0.26 : 0.14)),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.56),
+                color: Colors.black.withValues(alpha: 0.56),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Row(
@@ -3118,7 +3175,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             margin: const EdgeInsets.only(top: 10),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.72),
+              color: Colors.white.withValues(alpha: 0.72),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: const Color(0xFFE6DDCE)),
             ),
@@ -3156,7 +3213,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           margin: const EdgeInsets.only(top: 10),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.72),
+            color: Colors.white.withValues(alpha: 0.72),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: const Color(0xFFE6DDCE)),
           ),
@@ -3246,7 +3303,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.72),
+        color: Colors.white.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFE6DDCE)),
       ),
@@ -3362,7 +3419,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             OutlinedButton.icon(
               onPressed: () => context.push(detailRoute),
               icon: const Icon(Icons.open_in_new, size: 18),
-              label: const Text('Open original'),
+              label: Text(context.l10n.tr('open_original')),
             ),
           ],
         ],
@@ -3373,7 +3430,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   void _openImagePreview(String imageUrl) {
     showDialog<void>(
       context: context,
-      builder: (_) => Dialog(
+      builder: (dialogContext) => Dialog(
         insetPadding: const EdgeInsets.all(12),
         backgroundColor: Colors.black,
         child: Stack(
@@ -3389,7 +3446,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               top: 8,
               right: 8,
               child: IconButton(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () => Navigator.of(dialogContext).pop(),
                 icon: const Icon(Icons.close, color: Colors.white),
               ),
             ),
@@ -3408,7 +3465,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Text('Feed error:\n$_error'),
+          child: Text(context.l10n.tr('feed_error', args: {'error': '$_error'})),
         ),
       );
     }
@@ -3519,7 +3576,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                       'The video page now loads only when you actually open it.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.72),
+                        color: Colors.white.withValues(alpha: 0.72),
                         fontSize: 13,
                       ),
                     ),
@@ -3538,7 +3595,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.28),
+                  color: Colors.black.withValues(alpha: 0.28),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Row(
@@ -3564,7 +3621,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       width: active ? 18 : 8,
       height: 8,
       decoration: BoxDecoration(
-        color: active ? const Color(0xFF0F766E) : Colors.white.withOpacity(0.72),
+        color: active ? const Color(0xFF0F766E) : Colors.white.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(999),
       ),
     );
@@ -3615,7 +3672,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                 if (res == true) _load(reset: true);
               },
               icon: const Icon(Icons.add),
-              label: const Text('Post'),
+              label: Text(context.l10n.tr('post_label')),
             ),
           ],
         ),

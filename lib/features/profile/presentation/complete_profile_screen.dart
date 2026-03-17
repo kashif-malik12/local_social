@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
@@ -9,6 +10,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/business_categories.dart';
+import '../../../core/localization/app_language.dart';
+import '../../../core/localization/app_locale_controller.dart';
+import '../../../core/localization/app_localizations.dart';
 import '../../../core/platform/platform_info.dart';
 import '../../../core/restaurant_categories.dart';
 import '../../../services/profile_service.dart';
@@ -43,6 +47,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   String? _restaurantType;
   String? _businessType;
   int _radiusKm = 5;
+  AppLanguage _appLanguage = AppLanguage.french;
 
   // ✅ Avatar
   String? _avatarUrl;
@@ -131,7 +136,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         data = await Supabase.instance.client
             .from('profiles')
             .select(
-             'full_name, bio, business_profile, zipcode, city, latitude, longitude, profile_type, account_type, org_kind, radius_km, avatar_url, is_restaurant, restaurant_type, business_type, business_name, job_title',
+             'full_name, bio, business_profile, zipcode, city, latitude, longitude, profile_type, account_type, org_kind, radius_km, avatar_url, is_restaurant, restaurant_type, business_type, business_name, job_title, app_language',
             )
             .eq('id', user.id)
             .maybeSingle();
@@ -173,7 +178,12 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         _restaurantType = profile['restaurant_type'] as String?;
         _businessType = profile['business_type'] as String?;
         _radiusKm = (profile['radius_km'] as int?) ?? 5;
+        _appLanguage = AppLanguage.fromCode(profile['app_language'] as String?);
       });
+
+      ProviderScope.containerOf(context)
+          .read(appLocaleProvider.notifier)
+          .setLanguage(_appLanguage);
 
       final zip = (profile['zipcode'] as String?)?.trim() ?? '';
       final city = (profile['city'] as String?)?.trim() ?? '';
@@ -218,7 +228,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       setState(() => _avatarUrl = url);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Avatar updated ✅')),
+        SnackBar(content: Text(context.l10n.tr('avatar_updated'))),
       );
     } catch (e) {
       if (!mounted) return;
@@ -229,10 +239,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   }
 
   Future<void> _setFromZipcode() async {
+    final l10n = context.l10n;
     // ✅ Block changes once zip is set
     if (_isZipLocked) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Postal code is locked after first set.')),
+        SnackBar(content: Text(l10n.tr('postal_code_locked'))),
       );
       return;
     }
@@ -246,7 +257,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       final zip = _zipCtrl.text.trim();
 
       if (!RegExp(r'^\d{5}$').hasMatch(zip)) {
-        throw 'Enter a valid 5-digit French postal code (e.g. 91000)';
+        throw context.l10n.tr('postal_code_required');
       }
 
       double? lat;
@@ -262,12 +273,15 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       });
 
       if (res.statusCode != 200) {
-        throw 'Geocoding failed (HTTP ${res.statusCode}). Try again.';
+        throw l10n.tr(
+          'geocoding_failed',
+          args: {'status': '${res.statusCode}'},
+        );
       }
 
       final data = jsonDecode(res.body);
       if (data is! List || data.isEmpty) {
-        throw 'Postal code not found. Try another one.';
+        throw l10n.tr('postal_code_not_found');
       }
 
       lat = double.tryParse(data[0]['lat']?.toString() ?? '');
@@ -275,7 +289,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       city = await _resolveCityFromZipcode(zip);
 
       if (lat == null || lng == null) {
-        throw 'Geocoding returned invalid coordinates. Try another zip.';
+        throw l10n.tr('invalid_coordinates');
       }
 
       if (!mounted) return;
@@ -292,8 +306,14 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         SnackBar(
           content: Text(
             _cityCtrl.text.trim().isNotEmpty
-                ? 'Location set for $zip • ${_cityCtrl.text.trim()}'
-                : 'Location set for $zip. Add your city manually if needed.',
+                ? context.l10n.tr(
+                    'location_set_city',
+                    args: {'zip': zip, 'city': _cityCtrl.text.trim()},
+                  )
+                : context.l10n.tr(
+                    'location_set_zip_only',
+                    args: {'zip': zip},
+                  ),
           ),
         ),
       );
@@ -313,35 +333,35 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
     try {
       final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) throw 'Not logged in';
+      if (user == null) throw context.l10n.tr('not_logged_in');
 
       final fullName = _name.text.trim();
-      if (fullName.isEmpty) throw 'Name is required';
+      if (fullName.isEmpty) throw context.l10n.tr('name_required');
 
       final zip = _zipCtrl.text.trim();
       final city = _cityCtrl.text.trim();
       if (!_isZipLocked) {
         if (!RegExp(r'^\d{5}$').hasMatch(zip)) {
-          throw 'Enter a valid 5-digit French postal code (e.g. 91000)';
+          throw context.l10n.tr('postal_code_required');
         }
         if (_lat == null || _lng == null) {
-          throw 'Please set your location (zip code) first';
+          throw context.l10n.tr('set_location_first');
         }
       }
       if (city.isEmpty) {
-        throw 'City is required';
+        throw context.l10n.tr('city_required');
       }
 
       if (_accountType == 'org' && _orgKind == null) {
-        throw 'Please select Government, Non-profit, or News agency';
+        throw context.l10n.tr('select_org_type');
       }
 
       if (_accountType == 'business') {
         if (_isRestaurant && _restaurantType == null) {
-          throw 'Please select restaurant type';
+          throw context.l10n.tr('select_restaurant_type');
         }
         if (!_isRestaurant && _businessType == null) {
-          throw 'Please select business type';
+          throw context.l10n.tr('select_business_type');
         }
       }
       
@@ -369,6 +389,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         
         'radius_km': _radiusKm,
         'city': city,
+        'app_language': _appLanguage.code,
 
         // ✅ keep avatar
         'avatar_url': _avatarUrl,
@@ -394,7 +415,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         if (!msg.contains('is_restaurant') &&
             !msg.contains('restaurant_type') &&
             !msg.contains('business_type') &&
-            !msg.contains('business_profile')) {
+            !msg.contains('business_profile') &&
+            !msg.contains('app_language')) {
           rethrow;
         }
 
@@ -402,7 +424,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
           ..remove('is_restaurant')
           ..remove('restaurant_type')
           ..remove('business_type')
-          ..remove('business_profile');
+          ..remove('business_profile')
+          ..remove('app_language');
 
         await Supabase.instance.client.from('profiles').upsert({
           'id': user.id,
@@ -411,6 +434,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       }
 
       if (!mounted) return;
+      ProviderScope.containerOf(context)
+          .read(appLocaleProvider.notifier)
+          .setLanguage(_appLanguage);
       setState(() {
         _savedZip = zip;
         _zipLocked = RegExp(r'^\d{5}$').hasMatch(zip);
@@ -426,7 +452,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final zipLocked = _isZipLocked;
+    final isFrench = l10n.isFrench;
 
     return Scaffold(
       // ✅ Global sticky app bar (title clickable -> /feed)
@@ -458,14 +486,14 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Edit profile',
+                    l10n.tr('edit_profile'),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Update your identity, categories, location, and feed settings in one place.',
+                    l10n.tr('edit_profile_intro'),
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -523,7 +551,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'Tap to change avatar',
+                    l10n.tr('tap_to_change_avatar'),
                     style: TextStyle(
                       color: Theme.of(context).hintColor,
                       fontSize: 12,
@@ -537,11 +565,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             const SizedBox(height: 16),
 
             DropdownButtonFormField<String>(
-              value: _accountType,
-              items: const [
-                DropdownMenuItem(value: 'person', child: Text('Person')),
-                DropdownMenuItem(value: 'business', child: Text('Business')),
-                DropdownMenuItem(value: 'org', child: Text('Organization')),
+              initialValue: _accountType,
+              items: [
+                DropdownMenuItem(value: 'person', child: Text(l10n.tr('person'))),
+                DropdownMenuItem(value: 'business', child: Text(l10n.tr('business'))),
+                DropdownMenuItem(value: 'org', child: Text(l10n.tr('organization'))),
               ],
               onChanged: (v) {
                 setState(() {
@@ -554,9 +582,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                   }
                 });
               },
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Account type',
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: l10n.tr('account_type'),
               ),
             ),
             const SizedBox(height: 12),
@@ -575,7 +603,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     }
                   });
                 },
-                title: const Text('Are you a restaurant?'),
+                title: Text(l10n.tr('are_you_restaurant')),
                 secondary: Icon(
                   _isRestaurant ? Icons.verified : Icons.verified_outlined,
                   color: _isRestaurant ? Colors.green : null,
@@ -584,34 +612,44 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               const SizedBox(height: 8),
               if (_isRestaurant) ...[
                 DropdownButtonFormField<String>(
-                  value: _restaurantType,
+                  initialValue: _restaurantType,
                   items: restaurantMainCategories
                       .map((c) => DropdownMenuItem(
                             value: c,
-                            child: Text(restaurantCategoryLabel(c)),
+                            child: Text(
+                              localizedRestaurantCategoryLabel(
+                                c,
+                                isFrench: isFrench,
+                              ),
+                            ),
                           ))
                       .toList(),
                   onChanged: (v) => setState(() => _restaurantType = v),
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Restaurant category',
+                  decoration: InputDecoration(
+                    border: const OutlineInputBorder(),
+                    labelText: l10n.tr('restaurant_category'),
                   ),
                 ),
                 const SizedBox(height: 12),
               ],
               if (!_isRestaurant) ...[
                 DropdownButtonFormField<String>(
-                  value: _businessType,
+                  initialValue: _businessType,
                   items: businessMainCategories
                       .map((c) => DropdownMenuItem(
                             value: c,
-                            child: Text(businessCategoryLabel(c)),
+                            child: Text(
+                              localizedBusinessCategoryLabel(
+                                c,
+                                isFrench: isFrench,
+                              ),
+                            ),
                           ))
                       .toList(),
                   onChanged: (v) => setState(() => _businessType = v),
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Business category',
+                  decoration: InputDecoration(
+                    border: const OutlineInputBorder(),
+                    labelText: l10n.tr('business_category'),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -623,16 +661,18 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 controller: _businessName,
                 decoration: InputDecoration(
                   border: const OutlineInputBorder(),
-                  labelText: _accountType == 'business' ? 'Business Name' : 'Organization Name',
+                  labelText: _accountType == 'business'
+                      ? l10n.tr('business_name')
+                      : l10n.tr('organization_name'),
                   prefixIcon: const Icon(Icons.business),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: _jobTitle,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Your Title (Founder, Owner, Manager...)',
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  labelText: l10n.tr('your_title'),
                   prefixIcon: Icon(Icons.badge_outlined),
                 ),
               ),
@@ -643,11 +683,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 decoration: InputDecoration(
                   border: const OutlineInputBorder(),
                   labelText: _accountType == 'business'
-                      ? 'Short business profile'
-                      : 'Short organization profile',
+                      ? l10n.tr('short_business_profile')
+                      : l10n.tr('short_organization_profile'),
                   hintText: _accountType == 'business'
-                      ? 'Briefly describe your business'
-                      : 'Briefly describe your organization',
+                      ? l10n.tr('describe_business')
+                      : l10n.tr('describe_organization'),
                   prefixIcon: const Icon(Icons.business_center_outlined),
                 ),
               ),
@@ -656,16 +696,25 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
             if (_accountType == 'org') ...[
               DropdownButtonFormField<String>(
-                value: _orgKind,
-                items: const [
-                  DropdownMenuItem(value: 'government', child: Text('Government')),
-                  DropdownMenuItem(value: 'nonprofit', child: Text('Non-profit')),
-                  DropdownMenuItem(value: 'news_agency', child: Text('News agency')),
+                initialValue: _orgKind,
+                items: [
+                  DropdownMenuItem(
+                    value: 'government',
+                    child: Text(l10n.tr('government')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'nonprofit',
+                    child: Text(l10n.tr('non_profit')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'news_agency',
+                    child: Text(l10n.tr('news_agency')),
+                  ),
                 ],
                 onChanged: (v) => setState(() => _orgKind = v),
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Organization type',
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  labelText: l10n.tr('organization_type'),
                 ),
               ),
               const SizedBox(height: 12),
@@ -673,9 +722,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
             TextField(
               controller: _name,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Name',
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: l10n.tr('name'),
               ),
             ),
             const SizedBox(height: 12),
@@ -683,9 +732,32 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             TextField(
               controller: _bio,
               maxLines: 3,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Bio (optional)',
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: l10n.tr('bio_optional'),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            DropdownButtonFormField<AppLanguage>(
+              initialValue: _appLanguage,
+              items: [
+                DropdownMenuItem(
+                  value: AppLanguage.english,
+                  child: Text(l10n.tr('english')),
+                ),
+                DropdownMenuItem(
+                  value: AppLanguage.french,
+                  child: Text(l10n.tr('french')),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _appLanguage = value);
+              },
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: l10n.tr('app_language'),
               ),
             ),
             const SizedBox(height: 12),
@@ -699,16 +771,17 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       border: const OutlineInputBorder(),
-                      labelText: 'Postal Code',
-                      hintText: 'e.g. 91000',
-                      helperText: zipLocked ? 'Locked after first set' : null,
+                      labelText: l10n.tr('postal_code'),
+                      hintText: l10n.tr('postal_code_hint'),
+                      helperText:
+                          zipLocked ? l10n.tr('locked_after_first_set') : null,
                     ),
                   ),
                 ),
                 const SizedBox(width: 10),
                 ElevatedButton(
                   onPressed: (_loading || zipLocked) ? null : _setFromZipcode,
-                  child: Text(zipLocked ? 'Set ✅' : 'Set'),
+                  child: Text(zipLocked ? l10n.tr('set_done') : l10n.tr('set')),
                 ),
               ],
             ),
@@ -716,32 +789,45 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             TextField(
               controller: _cityCtrl,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'City',
-                hintText: 'Auto-filled from postal code, or enter manually',
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: l10n.tr('city'),
+                hintText: l10n.tr('city_hint'),
               ),
             ),
             const SizedBox(height: 8),
             if (_lat != null && _lng != null)
               Text(
                 _cityCtrl.text.trim().isNotEmpty
-                    ? 'City: ${_cityCtrl.text.trim()} • Lat/Lng: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}'
-                    : 'Lat/Lng: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}',
+                    ? l10n.tr(
+                        'city_lat_lng',
+                        args: {
+                          'city': _cityCtrl.text.trim(),
+                          'lat': _lat!.toStringAsFixed(5),
+                          'lng': _lng!.toStringAsFixed(5),
+                        },
+                      )
+                    : l10n.tr(
+                        'lat_lng',
+                        args: {
+                          'lat': _lat!.toStringAsFixed(5),
+                          'lng': _lng!.toStringAsFixed(5),
+                        },
+                      ),
               ),
 
             const SizedBox(height: 12),
             DropdownButtonFormField<int>(
-              value: _radiusKm,
+              initialValue: _radiusKm,
               items: const [
                 DropdownMenuItem(value: 5, child: Text('5 km')),
                 DropdownMenuItem(value: 10, child: Text('10 km')),
                 DropdownMenuItem(value: 20, child: Text('20 km')),
               ],
               onChanged: (v) => setState(() => _radiusKm = v ?? 5),
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Feed radius',
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: l10n.tr('feed_radius'),
               ),
             ),
 
@@ -756,7 +842,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _loading ? null : _save,
-                child: Text(_loading ? 'Saving...' : 'Save'),
+                child: Text(_loading ? l10n.tr('saving') : l10n.tr('save')),
               ),
             ),
                 ],

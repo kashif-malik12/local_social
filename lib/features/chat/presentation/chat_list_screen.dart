@@ -647,7 +647,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               border: const Border(
                 bottom: BorderSide(color: Color(0xFFE6DDCE)),
               ),
@@ -695,7 +695,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               border: const Border(
                 bottom: BorderSide(color: Color(0xFFE6DDCE)),
               ),
@@ -791,7 +791,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.95),
+          color: Colors.white.withValues(alpha: 0.95),
           border: const Border(
             top: BorderSide(color: Color(0xFFE6DDCE)),
           ),

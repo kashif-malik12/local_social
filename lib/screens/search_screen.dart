@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../widgets/global_app_bar.dart'; // ✅ NEW
 import '../widgets/global_bottom_nav.dart';
+import '../core/localization/app_localizations.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -38,11 +39,12 @@ class _SearchScreenState extends State<SearchScreen> {
   String _selectedAuthorType = 'all';
 
   String _strictnessLabel(double v) {
+    final l10n = context.l10n;
     final x = v.clamp(0.15, 0.45).toDouble();
-    if (x <= 0.20) return 'Broad';
-    if (x <= 0.30) return 'Balanced';
-    if (x <= 0.40) return 'Precise';
-    return 'Exact';
+    if (x <= 0.20) return l10n.tr('broad');
+    if (x <= 0.30) return l10n.tr('balanced');
+    if (x <= 0.40) return l10n.tr('precise');
+    return l10n.tr('exact');
   }
 
   bool _loading = false;
@@ -83,9 +85,43 @@ class _SearchScreenState extends State<SearchScreen> {
     switch (raw.trim()) {
       case 'followers':
       case 'following':
-        return 'Following';
+        return context.l10n.tr('following');
       case 'public':
-        return 'Public';
+        return context.l10n.tr('public');
+      default:
+        return raw;
+    }
+  }
+
+  String _postTypeLabel(String raw) {
+    switch (raw.trim()) {
+      case 'all':
+        return context.l10n.tr('all');
+      case 'post':
+        return context.l10n.tr('posts');
+      case 'market':
+        return context.l10n.tr('marketplace');
+      case 'service_offer':
+        return context.l10n.tr('service_offer');
+      case 'service_request':
+        return context.l10n.tr('service_request');
+      case 'lost_found':
+        return context.l10n.tr('lost_found');
+      default:
+        return raw;
+    }
+  }
+
+  String _authorTypeLabel(String raw) {
+    switch (raw.trim()) {
+      case 'all':
+        return context.l10n.tr('all');
+      case 'person':
+        return context.l10n.tr('person');
+      case 'business':
+        return context.l10n.tr('business');
+      case 'org':
+        return context.l10n.tr('organization');
       default:
         return raw;
     }
@@ -402,6 +438,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final q = _qCtrl.text.trim();
 
     return Scaffold(
@@ -420,7 +457,7 @@ class _SearchScreenState extends State<SearchScreen> {
               controller: _qCtrl,
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText: 'Search profiles or posts…',
+                hintText: l10n.tr('search_profiles_or_posts'),
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: q.isEmpty
                     ? null
@@ -457,7 +494,9 @@ class _SearchScreenState extends State<SearchScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _filtersExpanded ? 'Hide search filters' : 'Show search filters',
+                          _filtersExpanded
+                              ? l10n.tr('hide_search_filters')
+                              : l10n.tr('show_search_filters'),
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -471,15 +510,15 @@ class _SearchScreenState extends State<SearchScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: SegmentedButton<SearchTab>(
-              segments: const [
+              segments: [
                 ButtonSegment(
                   value: SearchTab.profiles,
-                  label: Text('Profiles'),
+                  label: Text(l10n.tr('profiles')),
                   icon: Icon(Icons.person_search),
                 ),
                 ButtonSegment(
                   value: SearchTab.posts,
-                  label: Text('Posts'),
+                  label: Text(l10n.tr('posts')),
                   icon: Icon(Icons.article),
                 ),
               ],
@@ -495,15 +534,18 @@ class _SearchScreenState extends State<SearchScreen> {
             child: SwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: _nearbyOnly,
-              title: const Text('Nearby only'),
+              title: Text(l10n.tr('nearby_only')),
               subtitle: Text(
                 !_profileLoaded
-                    ? 'Loading your location…'
+                    ? l10n.tr('loading_your_location')
                     : !_nearbyOnly
-                        ? 'Global search'
+                        ? l10n.tr('global_search')
                         : (_meLat == null || _meLng == null)
-                        ? 'Location not set in your profile (fallback to global search)'
-                        : 'Using your profile radius: $_meRadiusKm km',
+                        ? l10n.tr('location_not_set_fallback')
+                        : l10n.tr(
+                            'using_profile_radius',
+                            args: {'radius': '$_meRadiusKm'},
+                          ),
               ),
               onChanged: (v) {
                 setState(() => _nearbyOnly = v);
@@ -520,9 +562,9 @@ class _SearchScreenState extends State<SearchScreen> {
               children: [
                 Row(
                   children: [
-                    const Text(
-                      'Match strictness',
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                    Text(
+                      l10n.tr('match_strictness'),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -543,18 +585,18 @@ class _SearchScreenState extends State<SearchScreen> {
                   },
                   onChangeEnd: (_) => _runSearch(),
                 ),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(top: 2),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Broader', style: TextStyle(fontSize: 12)),
-                      Text('Exact', style: TextStyle(fontSize: 12)),
+                      Text(l10n.tr('broader'), style: const TextStyle(fontSize: 12)),
+                      Text(l10n.tr('exact'), style: const TextStyle(fontSize: 12)),
                     ],
                   ),
                 ),
                 Text(
-                  'This changes match quality only. Distance is controlled by Nearby only.',
+                  l10n.tr('this_changes_match_quality'),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -569,19 +611,19 @@ class _SearchScreenState extends State<SearchScreen> {
                 children: [
                   Expanded(
                     child: _DropdownBox(
-                      label: 'Scope',
+                      label: l10n.tr('scope'),
                       child: DropdownButton<SearchScope>(
                         isExpanded: true,
                         value: _scope,
                         underline: const SizedBox.shrink(),
-                        items: const [
+                        items: [
                           DropdownMenuItem(
                             value: SearchScope.public,
-                            child: Text('Public'),
+                            child: Text(l10n.tr('public')),
                           ),
                           DropdownMenuItem(
                             value: SearchScope.following,
-                            child: Text('Following'),
+                            child: Text(l10n.tr('following')),
                           ),
                         ],
                         onChanged: (v) {
@@ -595,7 +637,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _DropdownBox(
-                      label: 'Post Type',
+                      label: l10n.tr('post_type'),
                       child: DropdownButton<String>(
                         isExpanded: true,
                         value: _selectedPostType,
@@ -603,7 +645,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         items: _postTypes
                             .map((t) => DropdownMenuItem(
                                   value: t,
-                                  child: Text(t),
+                                  child: Text(_postTypeLabel(t)),
                                 ))
                             .toList(),
                         onChanged: (v) {
@@ -621,7 +663,7 @@ class _SearchScreenState extends State<SearchScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: _DropdownBox(
-                label: 'Author Type',
+                label: l10n.tr('author_type'),
                 child: DropdownButton<String>(
                   isExpanded: true,
                   value: _selectedAuthorType,
@@ -629,7 +671,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   items: _authorTypes
                       .map((t) => DropdownMenuItem(
                             value: t,
-                            child: Text(t),
+                            child: Text(_authorTypeLabel(t)),
                           ))
                       .toList(),
                   onChanged: (v) {
@@ -651,6 +693,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildBody(String q) {
+    final l10n = context.l10n;
     if (_loading) return const Center(child: CircularProgressIndicator());
 
     if (_error != null) {
@@ -666,17 +709,17 @@ class _SearchScreenState extends State<SearchScreen> {
                 style: const TextStyle(color: Colors.red),
               ),
               const SizedBox(height: 12),
-              ElevatedButton(onPressed: _runSearch, child: const Text('Retry')),
+              ElevatedButton(onPressed: _runSearch, child: Text(l10n.tr('retry'))),
             ],
           ),
         ),
       );
     }
 
-    if (q.isEmpty) return const Center(child: Text('Type something to search.'));
+    if (q.isEmpty) return Center(child: Text(l10n.tr('type_something_to_search')));
 
     if (_tab == SearchTab.profiles) {
-      if (_profiles.isEmpty) return const Center(child: Text('No profiles found.'));
+      if (_profiles.isEmpty) return Center(child: Text(l10n.tr('no_profiles_found')));
 
       return ListView.separated(
         itemCount: _profiles.length,
@@ -688,7 +731,8 @@ class _SearchScreenState extends State<SearchScreen> {
           final bName = (p['business_name'] as String?) ?? '';
           final job = (p['job_title'] as String?) ?? '';
           
-          final displayName = bName.isNotEmpty ? bName : (fullName.isEmpty ? 'Unnamed' : fullName);
+          final displayName =
+              bName.isNotEmpty ? bName : (fullName.isEmpty ? l10n.tr('unnamed') : fullName);
           final accountType = (p['account_type'] ?? '').toString();
           final city = (p['city'] ?? '').toString();
           final zipcode = (p['zipcode'] ?? '').toString();
@@ -729,7 +773,7 @@ class _SearchScreenState extends State<SearchScreen> {
       );
     }
 
-    if (_posts.isEmpty) return const Center(child: Text('No posts found.'));
+    if (_posts.isEmpty) return Center(child: Text(l10n.tr('no_posts_found')));
 
     return ListView.separated(
       itemCount: _posts.length,
@@ -746,14 +790,14 @@ class _SearchScreenState extends State<SearchScreen> {
 
         return ListTile(
           title: Text(
-            content.isEmpty ? '(no text)' : content,
+            content.isEmpty ? l10n.tr('no_text') : content,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
           subtitle: Text(
             [
-              if (postType.isNotEmpty) postType,
-              if (authorType.isNotEmpty) authorType,
+              if (postType.isNotEmpty) _postTypeLabel(postType),
+              if (authorType.isNotEmpty) _authorTypeLabel(authorType),
               if (visibility.isNotEmpty) _visibilityLabel(visibility),
               if (dist != null) '${dist.toStringAsFixed(1)} km',
               if (location.isNotEmpty) location,

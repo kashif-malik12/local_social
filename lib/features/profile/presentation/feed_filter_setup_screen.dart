@@ -127,6 +127,7 @@ class _FeedFilterSetupScreenState extends State<FeedFilterSetupScreen> {
     }
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F1E8),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -353,7 +354,7 @@ class _FeedFilterSetupScreenState extends State<FeedFilterSetupScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        color: const Color(0xFFFFFCF7),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: const Color(0xFFE6DDCE)),
       ),

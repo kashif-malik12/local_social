@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/chat_singletons.dart';
+import '../core/localization/app_localizations.dart';
 import '../features/moderation/providers/admin_access_provider.dart';
 import '../features/notifications/providers/notification_unread_provider.dart';
 
@@ -29,7 +30,11 @@ class GlobalBottomNav extends ConsumerWidget {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logout failed: $e')),
+        SnackBar(
+          content: Text(
+            context.l10n.tr('logout_failed', args: {'error': '$e'}),
+          ),
+        ),
       );
     }
   }
@@ -104,6 +109,7 @@ class GlobalBottomNav extends ConsumerWidget {
   }
 
   Future<void> _openOptions(BuildContext context) async {
+    final l10n = context.l10n;
     final currentPath = GoRouterState.of(context).uri.path;
     final isAdmin = await ProviderScope.containerOf(context).read(adminAccessProvider.future);
 
@@ -126,7 +132,7 @@ class GlobalBottomNav extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Options',
+                      l10n.tr('options'),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w800,
                           ),
@@ -144,7 +150,7 @@ class GlobalBottomNav extends ConsumerWidget {
                           }
                         },
                         icon: const Icon(Icons.tune_rounded),
-                        label: const Text('Filters'),
+                        label: Text(l10n.tr('filters')),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -154,7 +160,7 @@ class GlobalBottomNav extends ConsumerWidget {
                       children: [
                         _quickLinkButton(
                           icon: Icons.storefront_outlined,
-                          label: 'Marketplace',
+                          label: l10n.tr('marketplace'),
                           onPressed: () {
                             Navigator.of(sheetContext).pop();
                             context.push('/marketplace');
@@ -162,7 +168,7 @@ class GlobalBottomNav extends ConsumerWidget {
                         ),
                         _quickLinkButton(
                           icon: Icons.miscellaneous_services_outlined,
-                          label: 'Gigs',
+                          label: l10n.tr('gigs'),
                           onPressed: () {
                             Navigator.of(sheetContext).pop();
                             context.push('/gigs');
@@ -170,7 +176,7 @@ class GlobalBottomNav extends ConsumerWidget {
                         ),
                         _quickLinkButton(
                           icon: Icons.fastfood,
-                          label: 'Foods',
+                          label: l10n.tr('foods'),
                           onPressed: () {
                             Navigator.of(sheetContext).pop();
                             context.push('/foods');
@@ -178,7 +184,7 @@ class GlobalBottomNav extends ConsumerWidget {
                         ),
                         _quickLinkButton(
                           icon: Icons.business,
-                          label: 'Businesses',
+                          label: l10n.tr('businesses'),
                           onPressed: () {
                             Navigator.of(sheetContext).pop();
                             context.push('/businesses');
@@ -186,7 +192,7 @@ class GlobalBottomNav extends ConsumerWidget {
                         ),
                         _quickLinkButton(
                           icon: Icons.restaurant_menu,
-                          label: 'Restaurants',
+                          label: l10n.tr('restaurants'),
                           onPressed: () {
                             Navigator.of(sheetContext).pop();
                             context.push('/restaurants');
@@ -198,7 +204,7 @@ class GlobalBottomNav extends ConsumerWidget {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.person_outline),
-                      title: const Text('My profile'),
+                      title: Text(l10n.tr('my_profile')),
                       onTap: () {
                         Navigator.of(sheetContext).pop();
                         context.push('/profile');
@@ -208,7 +214,7 @@ class GlobalBottomNav extends ConsumerWidget {
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.admin_panel_settings_outlined),
-                        title: const Text('Admin portal'),
+                        title: Text(l10n.tr('admin_portal')),
                         onTap: () {
                           Navigator.of(sheetContext).pop();
                           context.push('/adminlive');
@@ -217,7 +223,7 @@ class GlobalBottomNav extends ConsumerWidget {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.logout),
-                      title: const Text('Logout'),
+                      title: Text(l10n.tr('logout')),
                       onTap: () {
                         Navigator.of(sheetContext).pop();
                         _logout(context);
@@ -235,6 +241,7 @@ class GlobalBottomNav extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     if (!_isMobile(context)) {
       return const SizedBox.shrink();
     }
@@ -246,7 +253,7 @@ class GlobalBottomNav extends ConsumerWidget {
       child: Container(
         decoration: BoxDecoration(
           color: surface,
-          border: Border(top: BorderSide(color: Colors.black.withOpacity(0.08))),
+          border: Border(top: BorderSide(color: Colors.black.withValues(alpha: 0.08))),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Row(
@@ -254,13 +261,13 @@ class GlobalBottomNav extends ConsumerWidget {
             _navItem(
               context: context,
               icon: Icons.home_outlined,
-              label: 'Home',
+              label: l10n.tr('home'),
               onTap: () => context.go('/feed'),
             ),
             _navItem(
               context: context,
               icon: Icons.search,
-              label: 'Search',
+              label: l10n.tr('search'),
               onTap: () => context.go('/search'),
             ),
             ValueListenableBuilder<int>(
@@ -269,7 +276,7 @@ class GlobalBottomNav extends ConsumerWidget {
                 return _navItem(
                   context: context,
                   icon: Icons.chat_bubble_outline,
-                  label: 'Chat',
+                  label: l10n.tr('chat'),
                   badgeCount: unread,
                   onTap: () {
                     unreadBadgeController.refresh();
@@ -281,7 +288,7 @@ class GlobalBottomNav extends ConsumerWidget {
             _navItem(
               context: context,
               icon: Icons.notifications_outlined,
-              label: 'Alerts',
+              label: l10n.tr('alerts'),
               badgeCount: unreadNotifications,
               onTap: () {
                 ref.read(notificationUnreadProvider.notifier).refresh();
@@ -291,7 +298,7 @@ class GlobalBottomNav extends ConsumerWidget {
             _navItem(
               context: context,
               icon: Icons.menu_rounded,
-              label: 'Options',
+              label: l10n.tr('options'),
               onTap: () => _openOptions(context),
             ),
           ],

@@ -42,6 +42,11 @@ Flutter social media app for local communities. Supabase backend. Originally bui
 - In-app notification preferences are also stored in `app_settings`.
 - Push notification preferences are stored in `app_settings` for future FCM/web push work, even though push delivery is not connected yet.
 - Notification inserts must respect recipient settings centrally in the database, not only in Flutter UI.
+- App UI language is stored in `profiles.app_language` with allowed values `en` and `fr`.
+- The app locale is now driven at startup and after profile saves by `lib/core/localization/app_locale_controller.dart`, so Flutter mobile and Flutter web switch language from the same profile-backed preference.
+- The language selector lives in `lib/features/profile/presentation/complete_profile_screen.dart` and must remain available in both complete-profile and edit-profile flows.
+- Logged-out/auth screens default to French via `app_locale_controller.dart`; signed-in users still use their saved profile preference.
+- Current translated surfaces include the shared navigation/app bar, complete/edit profile, profile settings, main profile detail actions/portfolio UI, auth screens, notifications, create-post, and quick-camera-post flows. User-generated post/comment content must remain in its original language and is not translated by the app.
 
 ---
 
@@ -112,7 +117,7 @@ Flutter social media app for local communities. Supabase backend. Originally bui
 
 - `feed_screen.dart` has lots of dead code. Removing one unused method cascades into more warnings. Only remove simple unused imports/variables in small files.
 - Always restore from git (`git checkout HEAD -- <file>`) if a deletion cascades badly.
-- Unread badge streams in `unread_badge_controller.dart` listen to the entire `messages` and `offer_messages` tables unfiltered — every message from any user triggers an RPC call. Low priority now but will degrade at scale. (See `docs/todo.md`)
+- Unread badge streams in `unread_badge_controller.dart` listen to the entire `messages` and `offer_messages` tables unfiltered — every message from any user triggers an RPC call. Low priority now but will degrade at scale. (See `todo.md`)
 
 ---
 
@@ -176,3 +181,22 @@ Verified working: `curl` from outside allowed domain returns `403 PERMISSION_DEN
 - Read this file before changing video feed layout, startup/auth persistence, navigation, or notification behavior.
 - Update this file after every significant change without waiting to be asked.
 - Never commit `google-services.json`, `GoogleService-Info.plist`, `firebase-messaging-sw.js`, `.env.local`, or `env.dart`.
+
+---
+
+## Docs Organization
+
+---
+
+## Localization Expansion
+
+- As of 2026-03-16, fixed-text localization was extended further across `search_screen.dart` and `feed_screen.dart`.
+- Search UI labels, filters, empty states, and fixed result metadata now follow the profile-backed app language.
+- Feed translation now covers filter controls, share/status messages, desktop sidebars, top-trending cards, profile completeness cards, and feed error/open-original actions.
+- User-generated content remains in its original language and is not auto-translated.
+- Browse/list screens for marketplace, gigs, foods, businesses, and restaurants now localize their fixed titles, search/filter controls, sort labels, CTA buttons, and empty/error states.
+- As of 2026-03-17, French is the default app language across logged-out/auth flows and as the fallback for profile-backed locale resolution. The language selector remains in `lib/features/profile/presentation/complete_profile_screen.dart`; it is not part of `profile_settings_screen.dart`.
+- The `profiles.app_language` migration default/backfill was corrected to `fr`, and remaining localization call sites were aligned to `tr(..., args: ...)` to match the custom localization API.
+
+- As of 2026-03-16, all repository Markdown files were consolidated under `docs/`.
+- Moved files: root `README.md` → `docs/README.md`, root `CLAUDE.md` → `docs/CLAUDE.md`, `ios/Runner/Assets.xcassets/LaunchImage.imageset/README.md` → `docs/ios_launch_screen_assets.md`.

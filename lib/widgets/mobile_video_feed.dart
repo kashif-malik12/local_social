@@ -293,7 +293,7 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
           Image.network(
             imageUrl,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(color: Colors.black),
+            errorBuilder: (_, _, _) => Container(color: Colors.black),
           )
         else
           Container(
@@ -305,7 +305,7 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
               ),
             ),
           ),
-        Container(color: Colors.black.withOpacity(0.22)),
+        Container(color: Colors.black.withValues(alpha: 0.22)),
         const Center(
           child: DecoratedBox(
             decoration: BoxDecoration(
@@ -422,7 +422,7 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
                                   ? 'Nearby videos within $_profileRadiusKm km'
                                   : 'Video feed'),
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.75),
+                            color: Colors.white.withValues(alpha: 0.75),
                             fontSize: 12,
                           ),
                         ),
@@ -433,7 +433,7 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
+                        color: Colors.black.withValues(alpha: 0.35),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
@@ -459,9 +459,9 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.26),
+                color: Colors.black.withValues(alpha: 0.26),
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white.withOpacity(0.08)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -501,10 +501,10 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.24),
+                            color: Colors.black.withValues(alpha: 0.24),
                             borderRadius: BorderRadius.circular(999),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.12),
+                              color: Colors.white.withValues(alpha: 0.12),
                             ),
                           ),
                           child: Row(
@@ -533,9 +533,9 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.white,
                             side: BorderSide(
-                              color: Colors.white.withOpacity(0.35),
+                              color: Colors.white.withValues(alpha: 0.35),
                             ),
-                            backgroundColor: Colors.black.withOpacity(0.18),
+                            backgroundColor: Colors.black.withValues(alpha: 0.18),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
                               vertical: 8,
@@ -557,9 +557,9 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.white,
                               side: BorderSide(
-                                color: Colors.white.withOpacity(0.35),
+                                color: Colors.white.withValues(alpha: 0.35),
                               ),
-                              backgroundColor: Colors.black.withOpacity(0.18),
+                              backgroundColor: Colors.black.withValues(alpha: 0.18),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
                                 vertical: 8,
@@ -617,10 +617,10 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
                               child: Container(
                                 padding: const EdgeInsets.all(18),
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.28),
+                                  color: Colors.black.withValues(alpha: 0.28),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: Colors.white.withOpacity(0.08),
+                                    color: Colors.white.withValues(alpha: 0.08),
                                   ),
                                 ),
                                 child: Column(
@@ -629,7 +629,7 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
                                     Text(
                                       'No videos found for this filter yet.',
                                       style: TextStyle(
-                                        color: Colors.white.withOpacity(0.82),
+                                        color: Colors.white.withValues(alpha: 0.82),
                                         fontSize: 16,
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -767,7 +767,7 @@ class _InlineYoutubePlayerState extends State<_InlineYoutubePlayer> {
               top: widget.muteTopOffset,
               right: 12,
               child: Material(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withValues(alpha: 0.5),
                 shape: const CircleBorder(),
                 child: InkWell(
                   customBorder: const CircleBorder(),

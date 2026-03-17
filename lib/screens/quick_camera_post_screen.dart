@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 
+import '../core/localization/app_localizations.dart';
 import '../core/platform/local_image_provider.dart';
 import '../core/platform/local_video_controller.dart';
 import '../services/media_compression_service.dart';
@@ -119,7 +120,7 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
       });
     } catch (e) {
       if (mounted) {
-        _showError('Camera failed: $e');
+        _showError(context.l10n.tr('camera_failed', args: {'error': '$e'}));
         Navigator.pop(context, false);
       }
     } finally {
@@ -128,11 +129,12 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
   }
 
   Future<void> _pickMentions() async {
+    final l10n = context.l10n;
     try {
       final connections = await _mentionService.fetchMutualConnections();
       if (!mounted) return;
       if (connections.isEmpty) {
-        _showError('No mutual connections available to tag');
+        _showError(l10n.tr('no_mutual_connections'));
         return;
       }
 
@@ -140,14 +142,14 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
         context: context,
         available: connections,
         initialSelection: _selectedMentions,
-        title: 'Tag connections',
+        title: l10n.tr('tag_connections'),
       );
 
       if (selected != null && mounted) {
         setState(() => _selectedMentions = selected);
       }
     } catch (e) {
-      _showError('Tag loading failed: $e');
+      _showError(l10n.tr('tag_loading_failed', args: {'error': '$e'}));
     }
   }
 
@@ -163,9 +165,10 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
   }
 
   Future<void> _submit() async {
+    final l10n = context.l10n;
     final mediaFile = _mediaFile;
     if (mediaFile == null) {
-      _showError('Capture something first');
+      _showError(l10n.tr('capture_something_first'));
       return;
     }
 
@@ -184,21 +187,19 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
         await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Location required'),
-            content: const Text(
-              'To post on Allonssy!, please set your location in your profile.',
-            ),
+            title: Text(context.l10n.tr('location_required')),
+            content: Text(context.l10n.tr('set_location_in_profile')),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
+                child: Text(context.l10n.tr('cancel')),
               ),
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(ctx);
                   context.go('/complete-profile');
                 },
-                child: const Text('Complete Profile'),
+                child: Text(context.l10n.tr('complete_profile')),
               ),
             ],
           ),
@@ -244,7 +245,7 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
 
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      _showError('Error: $e');
+      _showError(l10n.tr('error_with_detail', args: {'error': '$e'}));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -256,7 +257,7 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (mediaFile == null) {
-      return const Center(child: Text('No media captured'));
+      return Center(child: Text(context.l10n.tr('no_media_captured')));
     }
 
     if (widget.mode == QuickCaptureMode.photo) {
@@ -312,7 +313,7 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
                   width: 56,
                   height: 56,
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
+                    color: Colors.black.withValues(alpha: 0.6),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
@@ -373,14 +374,14 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
                     width: 56,
                     height: 56,
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
+                      color: Colors.black.withValues(alpha: 0.6),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
                   ),
                 )
               else
-                Container(color: Colors.black.withOpacity(0.24)),
+                Container(color: Colors.black.withValues(alpha: 0.24)),
             ],
           ),
         );
@@ -390,8 +391,9 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: const Text('Quick Camera Post')),
+      appBar: AppBar(title: Text(l10n.tr('quick_camera_post'))),
       bottomNavigationBar: const GlobalBottomNav(),
       body: Center(
         child: ConstrainedBox(
@@ -404,8 +406,8 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
               TextField(
                 controller: _contentCtrl,
                 maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'What is happening?',
+                decoration: InputDecoration(
+                  labelText: l10n.tr('what_is_happening'),
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -416,7 +418,7 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
                     child: OutlinedButton.icon(
                       onPressed: _loading ? null : _captureMedia,
                       icon: const Icon(Icons.refresh),
-                      label: const Text('Retake'),
+                      label: Text(l10n.tr('retake')),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -424,7 +426,7 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
                     child: OutlinedButton.icon(
                       onPressed: _loading ? null : _pickMentions,
                       icon: const Icon(Icons.alternate_email),
-                      label: const Text('Tag connections'),
+                      label: Text(l10n.tr('tag_connections')),
                     ),
                   ),
                 ],
@@ -454,30 +456,30 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
               if (!_isOrganization) ...[
                 DropdownButtonFormField<String>(
                   initialValue: _visibility,
-                  items: const [
-                    DropdownMenuItem(value: 'public', child: Text('Public')),
-                    DropdownMenuItem(value: 'followers', child: Text('Local')),
+                  items: [
+                    DropdownMenuItem(value: 'public', child: Text(l10n.tr('public'))),
+                    DropdownMenuItem(value: 'followers', child: Text(l10n.tr('local'))),
                   ],
                   onChanged: (v) => setState(() => _visibility = v ?? 'public'),
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Visibility',
+                  decoration: InputDecoration(
+                    border: const OutlineInputBorder(),
+                    labelText: l10n.tr('visibility'),
                   ),
                 ),
               ] else ...[
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
+                    color: Colors.blue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.public, color: Colors.blue),
-                      SizedBox(width: 12),
+                      const Icon(Icons.public, color: Colors.blue),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'This quick camera post will be public.',
+                          l10n.tr('this_quick_post_public'),
                           style: TextStyle(color: Colors.blue),
                         ),
                       ),
@@ -488,16 +490,16 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _shareScope,
-                items: const [
-                  DropdownMenuItem(value: 'none', child: Text('No sharing')),
-                  DropdownMenuItem(value: 'followers', child: Text('Followers can share')),
-                  DropdownMenuItem(value: 'connections', child: Text('Connections can share')),
-                  DropdownMenuItem(value: 'public', child: Text('Public can share')),
+                items: [
+                  DropdownMenuItem(value: 'none', child: Text(l10n.tr('no_sharing'))),
+                  DropdownMenuItem(value: 'followers', child: Text(l10n.tr('followers_can_share'))),
+                  DropdownMenuItem(value: 'connections', child: Text(l10n.tr('connections_can_share'))),
+                  DropdownMenuItem(value: 'public', child: Text(l10n.tr('public_can_share'))),
                 ],
                 onChanged: (v) => setState(() => _shareScope = v ?? 'none'),
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Allow sharing',
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  labelText: l10n.tr('allow_sharing'),
                 ),
               ),
               const SizedBox(height: 16),
@@ -509,7 +511,7 @@ class _QuickCameraPostScreenState extends State<QuickCameraPostScreen> {
                         height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Post now'),
+                    : Text(l10n.tr('post_now')),
               ),
             ],
           ),

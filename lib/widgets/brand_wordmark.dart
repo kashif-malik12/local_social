@@ -22,7 +22,7 @@ class BrandMark extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF08675E).withOpacity(0.18),
+            color: const Color(0xFF08675E).withValues(alpha: 0.18),
             blurRadius: size * 0.3,
             offset: Offset(0, size * 0.12),
           ),
@@ -39,7 +39,7 @@ class BrandMark extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 width: size * 0.04,
               ),
             ),
@@ -64,7 +64,7 @@ class BrandMark extends StatelessWidget {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFE8A74A).withOpacity(0.28),
+                    color: const Color(0xFFE8A74A).withValues(alpha: 0.28),
                     blurRadius: size * 0.08,
                   ),
                 ],
@@ -117,7 +117,7 @@ class BrandWordmark extends StatelessWidget {
       color: color,
       shadows: [
         BoxShadow(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           blurRadius: fontSize * 0.08,
           offset: Offset(0, fontSize * 0.04),
         ),

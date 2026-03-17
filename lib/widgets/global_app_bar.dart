@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/chat_singletons.dart';
+import '../core/localization/app_localizations.dart';
 import '../features/moderation/providers/admin_access_provider.dart';
 import '../features/notifications/providers/notification_unread_provider.dart';
 import 'brand_wordmark.dart';
@@ -49,7 +50,11 @@ class GlobalAppBar extends ConsumerWidget implements PreferredSizeWidget {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logout failed: $e')),
+        SnackBar(
+          content: Text(
+            context.l10n.tr('logout_failed', args: {'error': '$e'}),
+          ),
+        ),
       );
     }
   }
@@ -59,8 +64,9 @@ class GlobalAppBar extends ConsumerWidget implements PreferredSizeWidget {
     ThemeData theme,
     bool isAdmin,
   ) {
+    final l10n = context.l10n;
     return PopupMenuButton<String>(
-      tooltip: 'More',
+      tooltip: l10n.tr('more'),
       onSelected: (value) {
         if (value == 'profile') {
           context.push(myProfileRoute);
@@ -73,28 +79,28 @@ class GlobalAppBar extends ConsumerWidget implements PreferredSizeWidget {
         }
       },
       itemBuilder: (_) => [
-        const PopupMenuItem<String>(
+        PopupMenuItem<String>(
           value: 'home',
-          child: Text('Home'),
+          child: Text(l10n.tr('home')),
         ),
-        const PopupMenuItem<String>(
+        PopupMenuItem<String>(
           value: 'profile',
-          child: Text('My profile'),
+          child: Text(l10n.tr('my_profile')),
         ),
         if (isAdmin)
-          const PopupMenuItem<String>(
+          PopupMenuItem<String>(
             value: 'admin',
-            child: Text('Admin portal'),
+            child: Text(l10n.tr('admin_portal')),
           ),
-        const PopupMenuItem<String>(
+        PopupMenuItem<String>(
           value: 'logout',
-          child: Text('Logout'),
+          child: Text(l10n.tr('logout')),
         ),
       ],
       child: Padding(
         padding: const EdgeInsets.only(right: 6),
         child: Material(
-          color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.7),
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           child: const Padding(
             padding: EdgeInsets.all(10),
@@ -107,6 +113,7 @@ class GlobalAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final canPop = GoRouter.of(context).canPop();
     final showBack = showBackIfPossible && canPop;
     final theme = Theme.of(context);
@@ -145,13 +152,13 @@ class GlobalAppBar extends ConsumerWidget implements PreferredSizeWidget {
         if (showNavActions) ...[
           _actionIcon(
             context: context,
-            tooltip: 'Home',
+            tooltip: l10n.tr('home'),
             icon: const Icon(Icons.home_outlined),
             onPressed: () => context.go(homeRoute),
           ),
           _actionIcon(
             context: context,
-            tooltip: 'Search',
+            tooltip: l10n.tr('search'),
             icon: const Icon(Icons.search),
             onPressed: () => context.push(searchRoute),
           ),
@@ -160,7 +167,7 @@ class GlobalAppBar extends ConsumerWidget implements PreferredSizeWidget {
             builder: (_, unread, _) {
               return _actionIcon(
                 context: context,
-                tooltip: 'Messages',
+                tooltip: l10n.tr('messages'),
                 onPressed: () {
                   unreadBadgeController.refresh();
                   context.push(chatsRoute);
@@ -209,7 +216,7 @@ class GlobalAppBar extends ConsumerWidget implements PreferredSizeWidget {
                 final unread = ref.watch(notificationUnreadProvider);
                 return _actionIcon(
                   context: context,
-                  tooltip: 'Notifications',
+                  tooltip: l10n.tr('notifications'),
                   onPressed: () {
                     ref.read(notificationUnreadProvider.notifier).refresh();
                     context.push(notificationsRoute);
@@ -266,7 +273,7 @@ class GlobalAppBar extends ConsumerWidget implements PreferredSizeWidget {
     return Padding(
       padding: const EdgeInsets.only(right: 4),
       child: Material(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.7),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         child: IconButton(
           tooltip: tooltip,

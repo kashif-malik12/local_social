@@ -278,7 +278,7 @@ class _FollowListScreenState extends State<FollowListScreen> {
                                     color: Theme.of(context)
                                         .colorScheme
                                         .surfaceContainerHighest
-                                        .withOpacity(0.55),
+                                        .withValues(alpha: 0.55),
                                   ),
                                   child: Text(
                                     _badge(type),

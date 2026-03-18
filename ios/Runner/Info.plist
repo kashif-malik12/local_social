@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Allonssy!</string>
+	<string>Allonssy</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Allonssy!</string>
+	<string>Allonssy</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -24,6 +24,19 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
+	<!-- ── Privacy usage descriptions (required for App Store review) ── -->
+	<key>NSCameraUsageDescription</key>
+	<string>Allonssy uses your camera to take photos for posts, profile pictures, and chat messages.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Allonssy accesses your photo library to let you choose images for posts, profile pictures, and chat messages.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Allonssy may save photos to your library when you download content.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Allonssy uses the microphone to record video for posts.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Allonssy uses your location to show you relevant local content, listings, and people nearby.</string>
+
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

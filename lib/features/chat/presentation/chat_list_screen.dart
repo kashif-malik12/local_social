@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../widgets/global_app_bar.dart';
 import '../../../widgets/global_bottom_nav.dart';
@@ -758,7 +759,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
         final message = messages[i];
         final senderId = (message['sender_id'] ?? message['created_by'])?.toString();
         final isMe = senderId != null && senderId == myId;
-        final content = (message['content'] as String?) ?? '';
+        final raw = (message['content'] as String?) ?? '';
+        final payload = ChatMessageCodec.decode(raw);
 
         return Align(
           alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -772,11 +774,98 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: const Color(0xFFE6DDCE)),
               ),
-              child: Text(content),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (payload.text.trim().isNotEmpty)
+                    Text(payload.text.trim(), style: const TextStyle(height: 1.4)),
+                  if (payload.hasImage) ...[
+                    if (payload.text.trim().isNotEmpty) const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () => _openImageFullscreen(context, payload.imageUrl!),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          payload.imageUrl!,
+                          width: 260,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (payload.hasFile) ...[
+                    if (payload.text.trim().isNotEmpty || payload.hasImage)
+                      const SizedBox(height: 8),
+                    InkWell(
+                      onTap: () async {
+                        final uri = Uri.tryParse(payload.fileUrl!);
+                        if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.attach_file, size: 16),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                payload.fileName?.trim().isNotEmpty == true
+                                    ? payload.fileName!.trim()
+                                    : 'File',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  decoration: TextDecoration.underline,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+
+  void _openImageFullscreen(BuildContext context, String url) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 5.0,
+              child: Center(child: Image.network(url, fit: BoxFit.contain)),
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                style: IconButton.styleFrom(backgroundColor: Colors.black45),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

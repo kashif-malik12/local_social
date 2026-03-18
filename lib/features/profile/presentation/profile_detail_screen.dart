@@ -99,6 +99,30 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Avatar
+          Builder(builder: (context) {
+            final avatarUrl = (_profile?['avatar_url'] ?? '').toString().trim();
+            return Row(
+              children: [
+                CircleAvatar(
+                  radius: 38,
+                  backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                  backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                  child: avatarUrl.isEmpty
+                      ? Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : '?',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        )
+                      : null,
+                ),
+              ],
+            );
+          }),
+          const SizedBox(height: 14),
           Text(
             name,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(

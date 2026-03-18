@@ -39,6 +39,12 @@ echo "Generated $OUTPUT"
 flutter build web \
   --dart-define=FIREBASE_WEB_API_KEY="${FIREBASE_WEB_API_KEY}"
 
+# Ensure index.html is present in build output (Flutter can omit it in some cases)
+if [ ! -f "build/web/index.html" ]; then
+  sed 's|\$FLUTTER_BASE_HREF|/|g' web/index.html > build/web/index.html
+  echo "Copied and patched web/index.html to build/web/"
+fi
+
 echo "Web build complete."
 
 # Deploy to VPS

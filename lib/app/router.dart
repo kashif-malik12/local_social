@@ -26,6 +26,7 @@ import '../features/profile/presentation/profile_settings_screen.dart';
 import '../features/moderation/presentation/admin_review_screen.dart';
 
 import '../screens/feed_screen.dart';
+import '../screens/legal_screen.dart';
 import '../screens/create_post_screen.dart';
 import '../screens/quick_camera_post_screen.dart';
 import '../screens/comments_screen.dart';
@@ -75,6 +76,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final loggedIn = session != null && user != null;
 
       final path = state.uri.path;
+      final isPublicPage =
+          path == '/about' || path == '/terms' || path == '/privacy';
+
       final isAuth =
           path == '/login' || path == '/register' || path == '/forgot-password';
       final isOnboarding = path == '/complete-profile';
@@ -84,9 +88,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isAdminRoute =
           path.startsWith('/adminlive') || path.startsWith('/admin/review');
 
-      // ❌ Not logged in → must be on auth pages
+      // ❌ Not logged in → must be on auth pages or public pages
       if (!loggedIn) {
-        return (isAuth || isResetPassword || isAdminRoute) ? null : '/login';
+        return (isAuth || isResetPassword || isAdminRoute || isPublicPage) ? null : '/login';
       }
 
       // 🔁 Logged in → block auth pages
@@ -158,6 +162,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return isFeedSetup ? null : '/feed-setup';
         }
         if (isOnboarding || isFeedSetup) return '/feed';
+        // Logged in with complete profile but still on an auth page → go to feed
+        if (isAuth) return '/feed';
         return null;
       }
     },
@@ -198,6 +204,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/home',
         builder: (context, state) => const HomeScreen(),
+      ),
+
+      // ── Legal / public pages (no auth required) ──────────────────────────
+      GoRoute(
+        path: '/about',
+        builder: (context, state) => const LegalScreen(page: LegalPage.about),
+      ),
+      GoRoute(
+        path: '/terms',
+        builder: (context, state) => const LegalScreen(page: LegalPage.terms),
+      ),
+      GoRoute(
+        path: '/privacy',
+        builder: (context, state) => const LegalScreen(page: LegalPage.privacy),
       ),
 
       // ── Persistent tab shell ─────────────────────────────────────────────

@@ -47,6 +47,36 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="com.allonssy.app"/>
             </intent-filter>
+
+            <!-- Android App Links: marketplace product pages -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"
+                      android:host="app.allonssy.com"
+                      android:pathPrefix="/marketplace/product"/>
+            </intent-filter>
+
+            <!-- Android App Links: gig / service pages -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"
+                      android:host="app.allonssy.com"
+                      android:pathPrefix="/gigs/service"/>
+            </intent-filter>
+
+            <!-- Android App Links: food ad pages -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"
+                      android:host="app.allonssy.com"
+                      android:pathPrefix="/foods"/>
+            </intent-filter>
         </activity>
         <!-- Required by image_picker for camera capture (temporary file storage) -->
         <provider

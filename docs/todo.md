@@ -1,14 +1,19 @@
 # TODO
 
-## Unread Badge Streams — Optimize Realtime Scope
+## iOS Universal Links — Complete Setup When iOS Release Is Ready
 
-**File**: `lib/features/chat/services/unread_badge_controller.dart`
+**Files**: `ios/Runner/Runner.entitlements`, `web/.well-known/apple-app-site-association`
 
-The two realtime streams that power the unread chat badge listen to the entire `messages` and `offer_messages` tables with no user filter. Every message sent by any user in the app triggers an RPC refresh call on every logged-in device.
+The entitlements file is in place but two manual steps remain before iOS share links open the native app:
 
-**Fix**: Scope the realtime subscriptions to only the current user's conversations, e.g. filter by `conversation_id` in the user's conversation list, or use a Postgres `filter` on the channel so only relevant rows trigger the listener.
+1. **Xcode**: Open `ios/Runner.xcodeproj` → Runner target → Signing & Capabilities → add **Associated Domains** capability with `applinks:app.allonssy.com`. Xcode will link the existing `.entitlements` file automatically.
+2. **Team ID**: Replace `REPLACE_WITH_TEAM_ID` in `web/.well-known/apple-app-site-association` with the Apple Team ID from developer.apple.com, then redeploy: `scp web/.well-known/apple-app-site-association deploy@87.106.13.170:/var/www/local_social_web/.well-known/apple-app-site-association`
 
-**Priority**: Low now, but will degrade battery and backend load as user base grows.
+Until done, iOS share links open in the mobile browser (web app) instead of the native app — which still works, just not as seamless.
+
+**Priority**: Before iOS App Store release.
+
+---
 
 ## Critical Alerting - Re-enable Memory Threshold Later
 

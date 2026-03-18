@@ -33,6 +33,7 @@ class Post {
   final String? marketIntent;
   final String? marketTitle;
   final double? marketPrice;
+  final double? marketPriceMax;
   final double? distanceKm;
 
   Post({
@@ -64,6 +65,7 @@ class Post {
     this.marketIntent,
     this.marketTitle,
     this.marketPrice,
+    this.marketPriceMax,
     this.distanceKm,
   });
 
@@ -135,6 +137,7 @@ class Post {
       marketIntent: map['market_intent'] as String?,
       marketTitle: map['market_title'] as String?,
       marketPrice: (map['market_price'] as num?)?.toDouble(),
+      marketPriceMax: (map['market_price_max'] as num?)?.toDouble(),
       distanceKm: (map['distance_km'] as num?)?.toDouble(),
     );
   }

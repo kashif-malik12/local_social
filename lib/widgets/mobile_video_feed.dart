@@ -35,17 +35,39 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
       ReactionService(Supabase.instance.client);
   final Map<String, bool> _likedByMe = {};
   final Map<String, int> _likeCounts = {};
+  bool _feedMuted = true;
+  double _pullAmount = 0;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
+    _pageController.addListener(_onPageScroll);
     _init();
   }
 
   @override
   void dispose() {
+    _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _onPageScroll() {
+    if (!_pageController.hasClients) return;
+    final pixels = _pageController.position.pixels;
+    if (_activeIndex == 0 && pixels < 0) {
+      final drag = (-pixels * 0.6).clamp(0.0, 80.0);
+      if (mounted && drag != _pullAmount) setState(() => _pullAmount = drag);
+      if (drag >= 80 && !_refreshing) {
+        setState(() => _refreshing = true);
+        _load().then((_) {
+          if (mounted) setState(() { _refreshing = false; _pullAmount = 0; });
+        });
+      }
+    } else if (_pullAmount != 0 && !_refreshing) {
+      if (mounted) setState(() => _pullAmount = 0);
+    }
   }
 
   Future<void> _init() async {
@@ -342,9 +364,8 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
       videoUrl: videoUrl,
       maxHeight: double.infinity,
       startMuted: true,
-      showMuteToggle: true,
+      muted: _feedMuted,
       autoplay: true,
-      muteTopOffset: 120,
     );
   }
 
@@ -364,19 +385,21 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
       fit: StackFit.expand,
       children: [
         Container(color: Colors.black, child: _buildVideoPlayer(post, active: active)),
-        DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0x99000000),
-                Color(0x11000000),
-                Color(0x00000000),
-                Color(0x00000000),
-                Color(0xAA000000),
-              ],
-              stops: [0.0, 0.14, 0.45, 0.62, 1.0],
+        IgnorePointer(
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0x99000000),
+                  Color(0x11000000),
+                  Color(0x00000000),
+                  Color(0x00000000),
+                  Color(0xAA000000),
+                ],
+                stops: [0.0, 0.14, 0.45, 0.62, 1.0],
+              ),
             ),
           ),
         ),
@@ -446,6 +469,30 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
                       ),
                     ),
                 ],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 80,
+          right: 12,
+          child: SafeArea(
+            bottom: false,
+            child: GestureDetector(
+              onTap: () => setState(() => _feedMuted = !_feedMuted),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  _feedMuted ? Icons.volume_off : Icons.volume_up,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
             ),
           ),
@@ -661,6 +708,9 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
                         : PageView.builder(
                             controller: _pageController,
                             scrollDirection: Axis.vertical,
+                            physics: const BouncingScrollPhysics(
+                              parent: PageScrollPhysics(),
+                            ),
                             onPageChanged: (index) {
                               if (!mounted) return;
                               setState(() => _activeIndex = index);
@@ -678,6 +728,80 @@ class _MobileVideoFeedState extends State<MobileVideoFeed> {
                 width: 22,
                 height: 22,
                 child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          // Pull-to-refresh indicator at the top
+          if (_pullAmount > 0 || _refreshing)
+            Positioned(
+              top: 60,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 100),
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: _refreshing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Icon(
+                          Icons.arrow_downward,
+                          color: Colors.white.withValues(alpha: (_pullAmount / 80).clamp(0.3, 1.0)),
+                          size: 20,
+                        ),
+                ),
+              ),
+            ),
+          // Refresh button at end of feed
+          if (!_loading && !_loadingMore && (_posts.isEmpty || _activeIndex >= _posts.length - 1))
+            Positioned(
+              bottom: 100,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: _refreshing ? null : () async {
+                    setState(() => _refreshing = true);
+                    await _load();
+                    if (mounted) setState(() => _refreshing = false);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _refreshing
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.refresh, color: Colors.white, size: 18),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Refresh feed',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
         ],

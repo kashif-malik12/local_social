@@ -220,6 +220,35 @@ class GlobalBottomNav extends ConsumerWidget {
                           context.push('/adminlive');
                         },
                       ),
+                    const Divider(height: 24),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.info_outline),
+                      title: const Text('About Us'),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        context.push('/about');
+                      },
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.description_outlined),
+                      title: const Text('Terms & Conditions'),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        context.push('/terms');
+                      },
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.shield_outlined),
+                      title: const Text('Privacy Policy'),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        context.push('/privacy');
+                      },
+                    ),
+                    const Divider(height: 24),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.logout),

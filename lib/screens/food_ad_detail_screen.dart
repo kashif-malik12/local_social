@@ -9,6 +9,7 @@ import '../services/reaction_service.dart';
 import '../widgets/global_app_bar.dart';
 import '../widgets/global_bottom_nav.dart';
 import '../widgets/post_media_view.dart';
+import '../widgets/share_button.dart';
 import '../widgets/tagged_content.dart';
 
 class FoodAdDetailScreen extends StatefulWidget {
@@ -547,10 +548,20 @@ class _FoodAdDetailScreenState extends State<FoodAdDetailScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: const GlobalAppBar(
+      appBar: GlobalAppBar(
         title: 'Food details',
         showBackIfPossible: true,
         homeRoute: '/feed',
+        actions: p == null
+            ? null
+            : [
+                ShareButton(
+                  url: foodShareUrl(p.id),
+                  title: (p.marketTitle ?? '').trim().isNotEmpty
+                      ? p.marketTitle!.trim()
+                      : 'Check out this food listing on Allonssy',
+                ),
+              ],
       ),
       bottomNavigationBar: const GlobalBottomNav(),
       body: _loading

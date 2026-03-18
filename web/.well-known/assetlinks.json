@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.allonssy.app",
+      "sha256_cert_fingerprints": [
+        "7A:70:86:F0:EC:30:94:64:FB:40:02:14:95:11:74:99:B4:F6:2F:F5:80:6E:DE:89:21:72:8F:6F:49:0D:D0:A9"
+      ]
+    }
+  }
+]

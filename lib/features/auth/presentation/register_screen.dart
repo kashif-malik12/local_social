@@ -434,6 +434,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   child: Text(l10n.tr('back_to_login')),
                                 ),
                               ),
+                              const SizedBox(height: 16),
+                              const _LegalFooter(),
                             ],
                           ),
                   ),
@@ -494,6 +496,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+  }
+}
+
+class _LegalFooter extends StatelessWidget {
+  const _LegalFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    const linkStyle = TextStyle(
+      fontSize: 12,
+      color: Color(0xFF18847A),
+      decoration: TextDecoration.underline,
+    );
+    const sepStyle = TextStyle(fontSize: 12, color: Color(0xFF9E9E9E));
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 4,
+      runSpacing: 2,
+      children: [
+        GestureDetector(
+          onTap: () => context.push('/about'),
+          child: const Text('About Us', style: linkStyle),
+        ),
+        const Text('·', style: sepStyle),
+        GestureDetector(
+          onTap: () => context.push('/terms'),
+          child: const Text('Terms & Conditions', style: linkStyle),
+        ),
+        const Text('·', style: sepStyle),
+        GestureDetector(
+          onTap: () => context.push('/privacy'),
+          child: const Text('Privacy Policy', style: linkStyle),
+        ),
+      ],
     );
   }
 }

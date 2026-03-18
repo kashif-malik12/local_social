@@ -29,6 +29,15 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   List<Post> _posts = [];
   double? _meLat;
   double? _meLng;
+  bool _showFilters = false;
+
+  int get _activeFilterCount {
+    int count = 0;
+    if (_selectedCategory != 'all') count++;
+    if (_selectedIntent != 'all') count++;
+    if (_sortBy != 'date_desc') count++;
+    return count;
+  }
 
   int _gridCount(double width) {
     if (width >= 1200) return 4;
@@ -310,72 +319,128 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: _buildResponsiveDropdownRow(
-              label: l10n.tr('category_label'),
-              child: DropdownButton<String>(
-                value: _selectedCategory,
-                isExpanded: true,
-                items: [
-                  DropdownMenuItem(
-                    value: 'all',
-                    child: Text(l10n.tr('all_categories')),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+            child: Row(
+              children: [
+                ActionChip(
+                  avatar: Icon(
+                    _showFilters ? Icons.expand_less : Icons.tune,
+                    size: 18,
                   ),
-                  ...marketMainCategories.map(
-                    (c) => DropdownMenuItem(
-                      value: c,
-                      child: Text(marketCategoryLabel(c)),
+                  label: Text(l10n.tr('filters')),
+                  onPressed: () => setState(() => _showFilters = !_showFilters),
+                  backgroundColor: _activeFilterCount > 0
+                      ? Theme.of(context).colorScheme.primaryContainer
+                      : null,
+                ),
+                if (_activeFilterCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    '($_activeFilterCount)',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const SizedBox(width: 4),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _selectedCategory = 'all';
+                        _selectedIntent = 'all';
+                        _sortBy = 'date_desc';
+                      });
+                      _load();
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(l10n.tr('clear')),
+                  ),
                 ],
-                onChanged: (v) {
-                  if (v == null) return;
-                  setState(() => _selectedCategory = v);
-                  _load();
-                },
-              ),
+              ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: _buildResponsiveDropdownRow(
-              label: l10n.tr('type_label'),
-              child: DropdownButton<String>(
-                value: _selectedIntent,
-                isExpanded: true,
-                items: [
-                  DropdownMenuItem(value: 'all', child: Text(l10n.tr('all_types'))),
-                  DropdownMenuItem(value: 'selling', child: Text(l10n.tr('selling'))),
-                  DropdownMenuItem(value: 'buying', child: Text(l10n.tr('buying'))),
-                ],
-                onChanged: (v) {
-                  if (v == null) return;
-                  setState(() => _selectedIntent = v);
-                  _load();
-                },
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: _buildResponsiveDropdownRow(
-              label: l10n.tr('sort_label'),
-              child: DropdownButton<String>(
-                value: _sortBy,
-                isExpanded: true,
-                items: [
-                  DropdownMenuItem(value: 'date_desc', child: Text(l10n.tr('newest_first'))),
-                  DropdownMenuItem(value: 'date_asc', child: Text(l10n.tr('oldest_first'))),
-                  DropdownMenuItem(value: 'price_asc', child: Text(l10n.tr('price_low_to_high'))),
-                  DropdownMenuItem(value: 'price_desc', child: Text(l10n.tr('price_high_to_low'))),
-                ],
-                onChanged: (v) {
-                  if (v == null) return;
-                  setState(() => _sortBy = v);
-                  _load();
-                },
-              ),
-            ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            child: _showFilters
+                ? Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        child: _buildResponsiveDropdownRow(
+                          label: l10n.tr('category_label'),
+                          child: DropdownButton<String>(
+                            value: _selectedCategory,
+                            isExpanded: true,
+                            items: [
+                              DropdownMenuItem(
+                                value: 'all',
+                                child: Text(l10n.tr('all_categories')),
+                              ),
+                              ...marketMainCategories.map(
+                                (c) => DropdownMenuItem(
+                                  value: c,
+                                  child: Text(marketCategoryLabel(c)),
+                                ),
+                              ),
+                            ],
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setState(() => _selectedCategory = v);
+                              _load();
+                            },
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        child: _buildResponsiveDropdownRow(
+                          label: l10n.tr('type_label'),
+                          child: DropdownButton<String>(
+                            value: _selectedIntent,
+                            isExpanded: true,
+                            items: [
+                              DropdownMenuItem(value: 'all', child: Text(l10n.tr('all_types'))),
+                              DropdownMenuItem(value: 'selling', child: Text(l10n.tr('selling'))),
+                              DropdownMenuItem(value: 'buying', child: Text(l10n.tr('buying'))),
+                            ],
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setState(() => _selectedIntent = v);
+                              _load();
+                            },
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        child: _buildResponsiveDropdownRow(
+                          label: l10n.tr('sort_label'),
+                          child: DropdownButton<String>(
+                            value: _sortBy,
+                            isExpanded: true,
+                            items: [
+                              DropdownMenuItem(value: 'date_desc', child: Text(l10n.tr('newest_first'))),
+                              DropdownMenuItem(value: 'date_asc', child: Text(l10n.tr('oldest_first'))),
+                              DropdownMenuItem(value: 'price_asc', child: Text(l10n.tr('price_low_to_high'))),
+                              DropdownMenuItem(value: 'price_desc', child: Text(l10n.tr('price_high_to_low'))),
+                            ],
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setState(() => _sortBy = v);
+                              _load();
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : const SizedBox.shrink(),
           ),
           const Divider(height: 1),
           Expanded(
@@ -410,11 +475,16 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                                 final effectivePrice =
                                     p.marketPrice ?? _priceFromContent(p.content);
                                 final distanceKm = _distanceKm(p);
-                                final priceText = effectivePrice != null
-                                    ? 'EUR ${effectivePrice.toStringAsFixed(2)}'
-                                    : (intent == 'buying'
-                                        ? l10n.tr('looking_to_buy')
-                                        : l10n.tr('price_on_request'));
+                                final String priceText;
+                                if (effectivePrice != null) {
+                                  if (p.marketPriceMax != null && p.marketPriceMax! > effectivePrice) {
+                                    priceText = 'EUR ${effectivePrice.toStringAsFixed(2)} – EUR ${p.marketPriceMax!.toStringAsFixed(2)}';
+                                  } else {
+                                    priceText = 'EUR ${effectivePrice.toStringAsFixed(2)}';
+                                  }
+                                } else {
+                                  priceText = intent == 'buying' ? l10n.tr('looking_to_buy') : l10n.tr('price_on_request');
+                                }
 
                                 return InkWell(
                                   borderRadius: BorderRadius.circular(12),

@@ -143,10 +143,25 @@ class _MarketListingBody extends StatelessWidget {
 
   const _MarketListingBody({required this.post});
 
+  String _priceText() {
+    final min = post.marketPrice;
+    final max = post.marketPriceMax;
+    if (min == null) return 'Price on request';
+    if (max != null && max > min) {
+      return 'EUR ${min.toStringAsFixed(2)} – EUR ${max.toStringAsFixed(2)}';
+    }
+    return 'EUR ${min.toStringAsFixed(2)}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final parsed = _MarketPostData.parse(post.content);
-    final badgeColor = parsed.intent == 'buy' ? Colors.teal : Colors.orange;
+    final intent = post.marketIntent ?? _MarketPostData.parseIntent(post.content);
+    final title = (post.marketTitle ?? '').trim().isNotEmpty
+        ? post.marketTitle!.trim()
+        : _MarketPostData.parseTitle(post.content);
+    final details = _MarketPostData.parseDetails(post.content);
+    final badgeColor = intent == 'buying' ? Colors.teal : Colors.orange;
+    final intentLabel = intent == 'buying' ? 'BUY' : 'SELL';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,7 +189,7 @@ class _MarketListingBody extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
-                parsed.intentLabel,
+                intentLabel,
                 style: TextStyle(
                   color: badgeColor,
                   fontWeight: FontWeight.w700,
@@ -183,20 +198,20 @@ class _MarketListingBody extends StatelessWidget {
               ),
             ),
             Text(
-              parsed.price,
+              _priceText(),
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
             ),
           ],
         ),
         const SizedBox(height: 6),
         Text(
-          parsed.title,
+          title,
           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         ),
-        if (parsed.details != null && parsed.details!.isNotEmpty) ...[
+        if (details != null && details.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(
-            parsed.details!,
+            details,
             style: const TextStyle(fontSize: 14),
           ),
         ],
@@ -206,65 +221,29 @@ class _MarketListingBody extends StatelessWidget {
 }
 
 class _MarketPostData {
-  final String intent;
-  final String title;
-  final String price;
-  final String? details;
+  static String parseIntent(String rawContent) {
+    final first = rawContent.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).firstOrNull ?? '';
+    if (first.startsWith('[BUYING] ')) return 'buying';
+    return 'selling';
+  }
 
-  const _MarketPostData({
-    required this.intent,
-    required this.title,
-    required this.price,
-    required this.details,
-  });
+  static String parseTitle(String rawContent) {
+    final lines = rawContent.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    if (lines.isEmpty) return 'Market listing';
+    final first = lines.first;
+    if (first.startsWith('[BUYING] ')) return first.replaceFirst('[BUYING] ', '').trim();
+    if (first.startsWith('[SELLING] ')) return first.replaceFirst('[SELLING] ', '').trim();
+    return first.isNotEmpty ? first : 'Market listing';
+  }
 
-  String get intentLabel => intent == 'buy' ? 'BUY' : 'SELL';
-
-  static _MarketPostData parse(String rawContent) {
-    final lines = rawContent
-        .split('\n')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
-
-    String intent = 'sell';
-    String title = '';
-    String price = 'Price not set';
-    String? details;
-
-    if (lines.isNotEmpty) {
-      final first = lines.first;
-      if (first.startsWith('[BUYING] ')) {
-        intent = 'buy';
-        title = first.replaceFirst('[BUYING] ', '').trim();
-      } else if (first.startsWith('[SELLING] ')) {
-        intent = 'sell';
-        title = first.replaceFirst('[SELLING] ', '').trim();
-      } else {
-        title = first;
-      }
-    }
-
-    for (final line in lines.skip(1)) {
-      if (line.startsWith('Price:')) {
-        final parsedPrice = line.replaceFirst('Price:', '').trim();
-        if (parsedPrice.isNotEmpty) price = parsedPrice;
-      }
-
+  static String? parseDetails(String rawContent) {
+    for (final line in rawContent.split('\n').map((e) => e.trim())) {
       if (line.startsWith('Details:')) {
-        final parsedDetails = line.replaceFirst('Details:', '').trim();
-        if (parsedDetails.isNotEmpty) details = parsedDetails;
+        final d = line.replaceFirst('Details:', '').trim();
+        if (d.isNotEmpty) return d;
       }
     }
-
-    if (title.isEmpty) title = 'Market listing';
-
-    return _MarketPostData(
-      intent: intent,
-      title: title,
-      price: price,
-      details: details,
-    );
+    return null;
   }
 }
 

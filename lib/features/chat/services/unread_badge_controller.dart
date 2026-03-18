@@ -26,37 +26,61 @@ class UnreadBadgeController {
     _fallbackRefreshTimer ??=
         Timer.periodic(const Duration(seconds: 45), (_) => refresh());
 
-    _subscribeRealtime();
+    final userId = _db.auth.currentUser?.id;
+    if (userId != null) {
+      _subscribeRealtime(userId);
+    }
   }
 
-  void _subscribeRealtime() {
+  void _subscribeRealtime(String userId) {
     if (_channel != null) return;
 
-    final channel = _db.channel('unread-badge');
+    // Filter to messages sent by others — our own sends never change our unread count.
+    final channel = _db.channel('unread-badge-$userId');
 
     channel
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: 'messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.neq,
+            column: 'sender_id',
+            value: userId,
+          ),
           callback: (_) => refresh(),
         )
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: 'offer_messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.neq,
+            column: 'sender_id',
+            value: userId,
+          ),
           callback: (_) => refresh(),
         )
         .onPostgresChanges(
           event: PostgresChangeEvent.update,
           schema: 'public',
           table: 'messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.neq,
+            column: 'sender_id',
+            value: userId,
+          ),
           callback: (_) => refresh(),
         )
         .onPostgresChanges(
           event: PostgresChangeEvent.update,
           schema: 'public',
           table: 'offer_messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.neq,
+            column: 'sender_id',
+            value: userId,
+          ),
           callback: (_) => refresh(),
         )
         .subscribe((status, [error]) {

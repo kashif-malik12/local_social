@@ -72,6 +72,12 @@ class GlobalAppBar extends ConsumerWidget implements PreferredSizeWidget {
           context.push(myProfileRoute);
         } else if (value == 'admin') {
           context.push('/adminlive');
+        } else if (value == 'about') {
+          context.push('/about');
+        } else if (value == 'terms') {
+          context.push('/terms');
+        } else if (value == 'privacy') {
+          context.push('/privacy');
         } else if (value == 'logout') {
           _logout(context);
         } else if (value == 'home') {
@@ -92,6 +98,20 @@ class GlobalAppBar extends ConsumerWidget implements PreferredSizeWidget {
             value: 'admin',
             child: Text(l10n.tr('admin_portal')),
           ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'about',
+          child: Text('About Us'),
+        ),
+        const PopupMenuItem<String>(
+          value: 'terms',
+          child: Text('Terms & Conditions'),
+        ),
+        const PopupMenuItem<String>(
+          value: 'privacy',
+          child: Text('Privacy Policy'),
+        ),
+        const PopupMenuDivider(),
         PopupMenuItem<String>(
           value: 'logout',
           child: Text(l10n.tr('logout')),

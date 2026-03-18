@@ -200,3 +200,166 @@ Verified working: `curl` from outside allowed domain returns `403 PERMISSION_DEN
 
 - As of 2026-03-16, all repository Markdown files were consolidated under `docs/`.
 - Moved files: root `README.md` → `docs/README.md`, root `CLAUDE.md` → `docs/CLAUDE.md`, `ios/Runner/Assets.xcassets/LaunchImage.imageset/README.md` → `docs/ios_launch_screen_assets.md`.
+
+---
+
+## Feed UX Changes (2026-03-18)
+
+### Collapsible filters — marketplace & gigs
+- Both `marketplace_screen.dart` and `gigs_screen.dart` now use an `AnimatedSize`-wrapped collapsible filter panel toggled by an `ActionChip` that shows an active-filter count badge. A "Clear" `TextButton` resets all filters. Previously filters were always visible and took excessive vertical space.
+
+### Video feed — single feed-level mute
+- Removed per-video mute toggle from `NetworkVideoPlayer` when used inside the video feed.
+- Added a single `_feedMuted` bool in `mobile_video_feed.dart`. All videos in the feed share this state via the `muted:` prop on `NetworkVideoPlayer`.
+- `NetworkVideoPlayer` gained a `final bool? muted` prop and a `didUpdateWidget` override that syncs the external mute state to the controller volume.
+
+### Video feed — gradient tap-through fix
+- The gradient `DecoratedBox` overlay in `mobile_video_feed.dart` was absorbing all pointer events, blocking pause/mute taps. Fixed by wrapping it in `IgnorePointer`.
+
+### Video feed — pull-to-refresh
+- Pull-down refresh on first video: uses `PageController.addListener` reading `position.pixels < 0`. Threshold is 80 logical pixels of drag. Shows an arrow indicator → spinner on trigger.
+- End-of-feed refresh button rendered in the same outer `Stack` at the bottom of the last card.
+- `BouncingScrollPhysics(parent: PageScrollPhysics())` enables overscroll on the vertical `PageView`.
+
+### Main feed — deferred media loading
+- Each feed card is wrapped in `VisibilityDetector` with a 50% visibility threshold. Media (photo/video) is only rendered when the card is at least half visible.
+- Replaced scroll-position estimate with a `Set<int> _visiblePostIndices` updated per card.
+
+### Main feed — quick session filters
+- Session-only filter chips: All, Marketplace, Gigs, Food, Lost & Found, Organization.
+- Only chips for enabled post types appear (driven by the same feature-flag booleans used by the rest of the feed).
+- Mobile: hidden pill toggle near the bottom nav; tapping opens an animated chip overlay. Web: always-visible bar above the feed.
+- State is not persisted — resets to "All" on every app start.
+- Filter popup had a white `Container` background removed; chips now float transparently over the feed.
+
+### Main feed & video feed — FAB visibility
+- FABs (post button + scroll-to-top) are hidden when the user is on the video feed page (`_mobileFeedPage == 1`).
+
+---
+
+## Sharing Module (2026-03-18)
+
+### Overview
+Listing share links for marketplace products, gigs, and food ads. Share button appears only on the three detail pages — not on feed cards.
+
+### Share URLs
+| Type | URL pattern |
+|------|-------------|
+| Product | `https://app.allonssy.com/marketplace/product/{id}` |
+| Gig | `https://app.allonssy.com/gigs/service/{id}` |
+| Food | `https://app.allonssy.com/foods/{id}` |
+
+### Widget (`lib/widgets/share_button.dart`)
+- `ShareButton` — icon button (`Icons.share_outlined`) placed in the app bar `actions`.
+  - Mobile (Android/iOS): opens native OS share sheet via `share_plus`.
+  - Web (mobile browser): uses Web Share API via `share_plus`.
+  - Web (desktop/unsupported browsers): falls back to `Clipboard.setData` + snackbar "Link copied".
+- `ShareSheet` — optional bottom-sheet variant (copy + native share) for future use.
+- Helper functions: `marketplaceShareUrl()`, `gigShareUrl()`, `foodShareUrl()`.
+
+### Detail screens updated
+`marketplace_product_detail_screen.dart`, `gig_detail_screen.dart`, `food_ad_detail_screen.dart` — `GlobalAppBar` now receives `actions: [ShareButton(...)]` when the post is loaded. The `const` keyword was removed from the `GlobalAppBar` constructor call.
+
+### Dynamic routing (desktop vs mobile vs app)
+Links are plain HTTPS URLs pointing to the web app:
+- **Desktop browser** → opens web app directly.
+- **Android (app installed)** → Android App Links intercept → opens native app at the correct route.
+- **Android (no app)** → opens mobile browser → loads web app.
+- **iOS (app installed)** → Universal Links intercept → opens native app at the correct route.
+- **iOS (no app)** → opens mobile browser → loads web app.
+
+### Android App Links
+Three `<intent-filter android:autoVerify="true">` blocks added to `AndroidManifest.xml` with `pathPrefix`:
+- `/marketplace/product`
+- `/gigs/service`
+- `/foods`
+
+Verification file: `web/.well-known/assetlinks.json` — SHA-256 fingerprint is populated from the debug keystore (release build currently uses `signingConfig = signingConfigs.getByName("debug")`).
+SHA-256: `7A:70:86:F0:EC:30:94:64:FB:40:02:14:95:11:74:99:B4:F6:2F:F5:80:6E:DE:89:21:72:8F:6F:49:0D:D0:A9`
+**If a dedicated release keystore is added later**, update `assetlinks.json` with the new fingerprint and redeploy web.
+
+### iOS Universal Links
+`ios/Runner/Runner.entitlements` created with `com.apple.developer.associated-domains` → `applinks:app.allonssy.com`.
+**Requires linking in Xcode**: Open `ios/Runner.xcodeproj` → Runner target → Signing & Capabilities → + Capability → Associated Domains. Xcode will use the `.entitlements` file automatically once linked.
+
+Verification file: `web/.well-known/apple-app-site-association` — **requires Apple Team ID** (placeholder `REPLACE_WITH_TEAM_ID`).
+Find it in Apple Developer Portal → Membership. Replace and redeploy.
+
+### Server
+Caddy (`/etc/caddy/Caddyfile`) updated with:
+- `handle /.well-known/apple-app-site-association` → serves with `Content-Type: application/json` (required by iOS, file has no extension).
+- `handle /.well-known/*` → serves other well-known files statically.
+- Both placed before the `try_files → index.html` catch-all handler.
+Both `.well-known` files are deployed as part of `flutter build web` output in `web/.well-known/`.
+
+### Package added
+`share_plus: ^10.1.4` added to `pubspec.yaml`.
+
+---
+
+## Legal Pages — About Us, Terms & Conditions, Privacy Policy (2026-03-18)
+
+### Routes
+Three new public routes added to `router.dart` — no authentication required:
+- `/about` → `LegalScreen(page: LegalPage.about)`
+- `/terms` → `LegalScreen(page: LegalPage.terms)`
+- `/privacy` → `LegalScreen(page: LegalPage.privacy)`
+
+Router redirect updated: unauthenticated users are allowed through to these routes (alongside existing `/login`, `/register`, `/forgot-password`).
+
+### Screen
+Single file: `lib/screens/legal_screen.dart` with a `LegalPage` enum (`about`, `terms`, `privacy`). The screen has no `GlobalBottomNav` (intentionally — works without a session). Content is entirely inline.
+
+### Content
+| Page | Key details |
+|------|-------------|
+| About Us | Allonssy platform intro; Tradister SAS; SIREN 988 318 945; Ris-Orangis, France; hello@allonssy.com |
+| Terms & Conditions | Eligibility (16+), account rules, acceptable use, user content licence, marketplace disclaimer, moderation, liability limit, governing law (France) |
+| Privacy Policy | GDPR-compliant; data types collected; legal bases; user rights (access, rectification, erasure, portability, objection); CNIL reference; data retention 30 days after account deletion |
+
+### Entry Points
+| Surface | How links appear |
+|---------|-----------------|
+| Mobile bottom nav | Account sheet — About Us / Terms / Privacy list tiles with icons, separated by a `Divider`, placed above the logout tile |
+| Web app bar (≥1100 px) | "More" popup menu — About Us / Terms / Privacy items separated by `PopupMenuDivider`, placed above logout |
+| Login screen | Small teal underlined links in a `Wrap` at bottom of the login card (both mobile and web) |
+| Register screen | Same footer at bottom of the register card |
+
+---
+
+## Price Range Feature (2026-03-18)
+
+### Overview
+Marketplace and gigs posts now support an optional price range (min + max) in addition to a single price.
+
+### Database
+- Migration `supabase/migrations/20260318120000_add_market_price_max.sql` adds `market_price_max double precision` to `posts`.
+- Applied to production VPS via `docker exec supabase-db psql -U postgres -d postgres`.
+
+### Model
+- `Post` model: added `final double? marketPriceMax` field mapped from `market_price_max`.
+
+### Service
+- `PostService.createPost()`: added `double? marketPriceMax` parameter, included in insert payload as `market_price_max`.
+
+### Create post screen
+- For marketplace and gigs post types only, a **Single / Range** `ChoiceChip` toggle appears above the price field.
+- "Single" mode: single EUR price field (existing behavior).
+- "Range" mode: two side-by-side fields — "Min price" and "Max price". Validation ensures max > min.
+- Food ad posts retain a single price field; the toggle is not shown for them.
+- `_marketPriceMaxCtrl` added and disposed properly. `_priceIsRange` resets when switching away from market/service post types.
+
+### Display — price formatting rule
+All five display locations use this rule:
+- Both min and max present (max > min): `EUR X.XX – EUR Y.XX`
+- Min only: `EUR X.XX`
+- Neither: fallback label (e.g. "Price on request", "Rate on request", "Looking to buy")
+
+### Display locations updated
+| File | Change |
+|------|--------|
+| `lib/widgets/post_card.dart` | `_MarketListingBody` now uses `post.marketPrice` + `post.marketPriceMax` directly instead of legacy content parsing. Intent and title also read from Post model fields with content fallback. |
+| `lib/screens/marketplace_screen.dart` | Grid card price label updated to show range. |
+| `lib/screens/gigs_screen.dart` | Grid card price label updated to show range. |
+| `lib/screens/marketplace_product_detail_screen.dart` | Detail price row updated. |
+| `lib/screens/gig_detail_screen.dart` | Detail price row updated. |

@@ -30,6 +30,16 @@ class _GigsScreenState extends State<GigsScreen> {
   List<Post> _posts = [];
   double? _meLat;
   double? _meLng;
+  bool _showFilters = false;
+
+  int get _activeFilterCount {
+    int count = 0;
+    if (_selectedCategory != 'all') count++;
+    if (_selectedType != 'all') count++;
+    if (_pricingFilter != 'all') count++;
+    if (_sortBy != 'date_desc') count++;
+    return count;
+  }
 
   int _gridCount(double width) {
     if (width >= 1200) return 4;
@@ -243,118 +253,175 @@ class _GigsScreenState extends State<GigsScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
             child: Row(
               children: [
-                Text(l10n.tr('category_label')),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButton<String>(
-                    value: _selectedCategory,
-                    isExpanded: true,
-                    items: [
-                      DropdownMenuItem(
-                        value: 'all',
-                        child: Text(l10n.tr('all_categories')),
+                ActionChip(
+                  avatar: Icon(
+                    _showFilters ? Icons.expand_less : Icons.tune,
+                    size: 18,
+                  ),
+                  label: Text(l10n.tr('filters')),
+                  onPressed: () => setState(() => _showFilters = !_showFilters),
+                  backgroundColor: _activeFilterCount > 0
+                      ? Theme.of(context).colorScheme.primaryContainer
+                      : null,
+                ),
+                if (_activeFilterCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    '($_activeFilterCount)',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _selectedCategory = 'all';
+                        _selectedType = 'all';
+                        _pricingFilter = 'all';
+                        _sortBy = 'date_desc';
+                      });
+                      _load();
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(l10n.tr('clear')),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            child: _showFilters
+                ? Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        child: Row(
+                          children: [
+                            Text(l10n.tr('category_label')),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: DropdownButton<String>(
+                                value: _selectedCategory,
+                                isExpanded: true,
+                                items: [
+                                  DropdownMenuItem(
+                                    value: 'all',
+                                    child: Text(l10n.tr('all_categories')),
+                                  ),
+                                  ...serviceMainCategories.map(
+                                    (c) => DropdownMenuItem(
+                                      value: c,
+                                      child: Text(serviceCategoryLabel(c)),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  setState(() => _selectedCategory = v);
+                                  _load();
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      ...serviceMainCategories.map(
-                        (c) => DropdownMenuItem(
-                          value: c,
-                          child: Text(serviceCategoryLabel(c)),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        child: Row(
+                          children: [
+                            Text(l10n.tr('type_label')),
+                            const SizedBox(width: 42),
+                            Expanded(
+                              child: DropdownButton<String>(
+                                value: _selectedType,
+                                isExpanded: true,
+                                items: [
+                                  DropdownMenuItem(value: 'all', child: Text(l10n.tr('all_types'))),
+                                  DropdownMenuItem(
+                                    value: 'service_offer',
+                                    child: Text(l10n.tr('offering')),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'service_request',
+                                    child: Text(l10n.tr('requesting')),
+                                  ),
+                                ],
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  setState(() => _selectedType = v);
+                                  _load();
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        child: Row(
+                          children: [
+                            Text(l10n.tr('sort_label')),
+                            const SizedBox(width: 40),
+                            Expanded(
+                              child: DropdownButton<String>(
+                                value: _sortBy,
+                                isExpanded: true,
+                                items: [
+                                  DropdownMenuItem(value: 'date_desc', child: Text(l10n.tr('newest_first'))),
+                                  DropdownMenuItem(value: 'date_asc', child: Text(l10n.tr('oldest_first'))),
+                                  DropdownMenuItem(value: 'price_asc', child: Text(l10n.tr('price_low_to_high'))),
+                                  DropdownMenuItem(value: 'price_desc', child: Text(l10n.tr('price_high_to_low'))),
+                                ],
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  setState(() => _sortBy = v);
+                                  _load();
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        child: Row(
+                          children: [
+                            Text('${l10n.tr('price')}:'),
+                            const SizedBox(width: 34),
+                            Expanded(
+                              child: DropdownButton<String>(
+                                value: _pricingFilter,
+                                isExpanded: true,
+                                items: [
+                                  DropdownMenuItem(value: 'all', child: Text(l10n.tr('all'))),
+                                  DropdownMenuItem(value: 'priced', child: Text(l10n.tr('with_price'))),
+                                  DropdownMenuItem(value: 'unpriced', child: Text(l10n.tr('without_price'))),
+                                ],
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  setState(() => _pricingFilter = v);
+                                  _load();
+                                },
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setState(() => _selectedCategory = v);
-                      _load();
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: Row(
-              children: [
-                Text(l10n.tr('type_label')),
-                const SizedBox(width: 42),
-                Expanded(
-                  child: DropdownButton<String>(
-                    value: _selectedType,
-                    isExpanded: true,
-                    items: [
-                      DropdownMenuItem(value: 'all', child: Text(l10n.tr('all_types'))),
-                      DropdownMenuItem(
-                        value: 'service_offer',
-                        child: Text(l10n.tr('offering')),
-                      ),
-                      DropdownMenuItem(
-                        value: 'service_request',
-                        child: Text(l10n.tr('requesting')),
-                      ),
-                    ],
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setState(() => _selectedType = v);
-                      _load();
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: Row(
-              children: [
-                Text(l10n.tr('sort_label')),
-                const SizedBox(width: 40),
-                Expanded(
-                  child: DropdownButton<String>(
-                    value: _sortBy,
-                    isExpanded: true,
-                    items: [
-                      DropdownMenuItem(value: 'date_desc', child: Text(l10n.tr('newest_first'))),
-                      DropdownMenuItem(value: 'date_asc', child: Text(l10n.tr('oldest_first'))),
-                      DropdownMenuItem(value: 'price_asc', child: Text(l10n.tr('price_low_to_high'))),
-                      DropdownMenuItem(value: 'price_desc', child: Text(l10n.tr('price_high_to_low'))),
-                    ],
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setState(() => _sortBy = v);
-                      _load();
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: Row(
-              children: [
-                Text('${l10n.tr('price')}:'),
-                const SizedBox(width: 34),
-                Expanded(
-                  child: DropdownButton<String>(
-                    value: _pricingFilter,
-                    isExpanded: true,
-                    items: [
-                      DropdownMenuItem(value: 'all', child: Text(l10n.tr('all'))),
-                      DropdownMenuItem(value: 'priced', child: Text(l10n.tr('with_price'))),
-                      DropdownMenuItem(value: 'unpriced', child: Text(l10n.tr('without_price'))),
-                    ],
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setState(() => _pricingFilter = v);
-                      _load();
-                    },
-                  ),
-                ),
-              ],
-            ),
+                  )
+                : const SizedBox.shrink(),
           ),
           const Divider(height: 1),
           Expanded(
@@ -388,11 +455,16 @@ class _GigsScreenState extends State<GigsScreen> {
                                 final title = (p.marketTitle ?? '').trim().isNotEmpty
                                     ? p.marketTitle!.trim()
                                     : _plainListingText(p.content);
-                                final priceText = p.marketPrice != null
-                                    ? '€${p.marketPrice!.toStringAsFixed(2)}'
-                                    : (p.postType == 'service_request'
-                                        ? l10n.tr('budget_open')
-                                        : l10n.tr('rate_on_request'));
+                                final String priceText;
+                                if (p.marketPrice != null) {
+                                  if (p.marketPriceMax != null && p.marketPriceMax! > p.marketPrice!) {
+                                    priceText = '€${p.marketPrice!.toStringAsFixed(2)} – €${p.marketPriceMax!.toStringAsFixed(2)}';
+                                  } else {
+                                    priceText = '€${p.marketPrice!.toStringAsFixed(2)}';
+                                  }
+                                } else {
+                                  priceText = p.postType == 'service_request' ? l10n.tr('budget_open') : l10n.tr('rate_on_request');
+                                }
 
                                 return InkWell(
                                   borderRadius: BorderRadius.circular(12),

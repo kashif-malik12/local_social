@@ -18,6 +18,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:visibility_detector/visibility_detector.dart';
+
 import '../app/chat_singletons.dart';
 import '../core/food_categories.dart';
 import '../core/create_post_launcher.dart';
@@ -66,7 +68,25 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   bool _showScrollTop = false;
   DateTime? _cursorCreatedAt;
   String? _cursorId;
-  int _activeMediaIndex = 0;
+  final Set<int> _visiblePostIndices = {};
+
+  // ─── Quick session filter (not persisted) ──────────────────────────────
+  String _quickFilter = 'all';
+  bool _showQuickFilters = false;
+
+  List<Post> get _displayPosts {
+    if (_quickFilter == 'all') return _posts;
+    return _posts.where((post) {
+      switch (_quickFilter) {
+        case 'marketplace': return _isMarketplacePost(post);
+        case 'gigs': return _isGigPost(post);
+        case 'food': return _isFoodPost(post);
+        case 'lost_found': return _isLostFoundPost(post);
+        case 'organization': return (post.authorType ?? '').trim() == 'org';
+        default: return true;
+      }
+    }).toList();
+  }
 
   // ✅ Filters
   bool _generalPostsEnabled = true;
@@ -163,14 +183,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (!_scroll.hasClients) return;
     final pos = _scroll.position;
     final shouldShowTop = pos.pixels > 320;
-    final estimatedIndex = (pos.pixels / 640).floor().clamp(0, _posts.isEmpty ? 0 : _posts.length - 1);
     if (shouldShowTop != _showScrollTop && mounted) {
-      setState(() {
-        _showScrollTop = shouldShowTop;
-        _activeMediaIndex = estimatedIndex;
-      });
-    } else if (estimatedIndex != _activeMediaIndex && mounted) {
-      setState(() => _activeMediaIndex = estimatedIndex);
+      setState(() => _showScrollTop = shouldShowTop);
     }
     if (pos.pixels >= pos.maxScrollExtent - 350) {
       _loadMore();
@@ -2707,6 +2721,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     required bool showTopFilters,
     required bool showSummaryBanner,
   }) {
+    final posts = _displayPosts;
     return RefreshIndicator(
       onRefresh: () async {
         await _reloadForNewPosts();
@@ -2715,21 +2730,21 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       child: ListView.builder(
         controller: _scroll,
         cacheExtent: 900,
-        itemCount: _posts.length + 2,
+        itemCount: posts.length + 2,
         itemBuilder: (_, i) {
           if (showTopFilters) {
             if (i == 0) return _buildFilters();
-            if (i == _posts.length + 1) return _buildFooter();
+            if (i == posts.length + 1) return _buildFooter();
           } else if (showSummaryBanner) {
             if (i == 0) return _buildFeedSummaryBanner();
-            if (i == _posts.length + 1) return _buildFooter();
+            if (i == posts.length + 1) return _buildFooter();
           } else {
             if (i == 0) return const SizedBox(height: 6);
-            if (i == _posts.length + 1) return _buildFooter();
+            if (i == posts.length + 1) return _buildFooter();
           }
 
           final postIndex = i - 1;
-          final p = _posts[postIndex];
+          final p = posts[postIndex];
           final authorAccountBadge = _getAuthorAccountBadge(p);
           final authorSubtypeBadge = _getAuthorSubtypeBadge(p);
           final categoryBadge = _getCategoryBadge(p);
@@ -2737,9 +2752,24 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           final isPrivateListing = _isPrivateListing(p);
           final displayPost = _displayPost(p);
           final detailRoute = _detailRouteForPost(displayPost);
-          final shouldEagerLoadMedia = (postIndex - _activeMediaIndex).abs() <= 1;
+          final shouldEagerLoadMedia = _visiblePostIndices.contains(postIndex);
 
-          return Card(
+          return VisibilityDetector(
+            key: ValueKey('feed-post-$postIndex'),
+            onVisibilityChanged: (info) {
+              if (!mounted) return;
+              final visible = info.visibleFraction >= 0.5;
+              final wasVisible = _visiblePostIndices.contains(postIndex);
+              if (visible == wasVisible) return;
+              setState(() {
+                if (visible) {
+                  _visiblePostIndices.add(postIndex);
+                } else {
+                  _visiblePostIndices.remove(postIndex);
+                }
+              });
+            },
+            child: Card(
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -2948,8 +2978,43 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                 ],
               ),
             ),
+          ),
           );
         },
+      ),
+    );
+  }
+
+  List<(String, String)> get _quickFilterOptions {
+    return [
+      ('all', context.l10n.tr('all')),
+      if (_marketplaceEnabled) ('marketplace', context.l10n.tr('marketplace')),
+      if (_gigsEnabled) ('gigs', context.l10n.tr('gigs')),
+      if (_foodAdsEnabled) ('food', context.l10n.tr('foods')),
+      if (_lostFoundEnabled) ('lost_found', 'Lost & Found'),
+      if (_organizationsEnabled) ('organization', 'Organization'),
+    ];
+  }
+
+  Widget _buildQuickFilterBar() {
+    final options = _quickFilterOptions;
+    if (options.length <= 1) return const SizedBox.shrink();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+      child: Row(
+        children: options.map((opt) {
+          final selected = _quickFilter == opt.$1;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: Text(opt.$2),
+              selected: selected,
+              onSelected: (_) => setState(() => _quickFilter = opt.$1),
+              showCheckmark: false,
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -3480,6 +3545,18 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           );
         }
 
+        final feedColumn = Column(
+          children: [
+            _buildQuickFilterBar(),
+            Expanded(
+              child: _buildFeedList(
+                showTopFilters: false,
+                showSummaryBanner: true,
+              ),
+            ),
+          ],
+        );
+
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -3493,10 +3570,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                 alignment: Alignment.topCenter,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 820),
-                  child: _buildFeedList(
-                    showTopFilters: false,
-                    showSummaryBanner: true,
-                  ),
+                  child: feedColumn,
                 ),
               ),
             ),
@@ -3611,6 +3685,104 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           ),
         ),
         if (_mobileFeedPage == 0) _buildStickyFeedStatus(top: 44),
+        if (_mobileFeedPage == 0 && _quickFilterOptions.length > 1)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _buildMobileQuickFilterOverlay(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildMobileQuickFilterOverlay() {
+    final options = _quickFilterOptions;
+    final hasActive = _quickFilter != 'all';
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          child: _showQuickFilters
+              ? SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+                  child: Row(
+                    children: options.map((opt) {
+                      final selected = _quickFilter == opt.$1;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(opt.$2),
+                          selected: selected,
+                          onSelected: (_) => setState(() {
+                            _quickFilter = opt.$1;
+                            _showQuickFilters = false;
+                          }),
+                          showCheckmark: false,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+        Center(
+          child: GestureDetector(
+            onTap: () => setState(() => _showQuickFilters = !_showQuickFilters),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: hasActive
+                    ? Theme.of(context).colorScheme.primaryContainer
+                    : Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: hasActive
+                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)
+                      : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _showQuickFilters ? Icons.expand_more : Icons.tune,
+                    size: 16,
+                    color: hasActive
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    hasActive
+                        ? options.firstWhere((o) => o.$1 == _quickFilter,
+                            orElse: () => ('all', 'All')).$2
+                        : context.l10n.tr('filters'),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: hasActive
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -3643,40 +3815,42 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         onBeforeLogout: _onBeforeLogout,
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: Padding(
-        padding: EdgeInsets.only(
-          right: MediaQuery.of(context).size.width >= 1100 ? 340 : 0,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (_showScrollTop)
-              FloatingActionButton.small(
-                heroTag: 'feed-top',
-                onPressed: () {
-                  _scroll.animateTo(
-                    0,
-                    duration: const Duration(milliseconds: 350),
-                    curve: Curves.easeOut,
-                  );
-                },
-                child: const Icon(Icons.keyboard_arrow_up),
+      floatingActionButton: _mobileFeedPage == 1
+          ? null
+          : Padding(
+              padding: EdgeInsets.only(
+                right: MediaQuery.of(context).size.width >= 1100 ? 340 : 0,
               ),
-            if (_showScrollTop) const SizedBox(height: 10),
-            FloatingActionButton.extended(
-              heroTag: 'feed-post',
-              onPressed: () async {
-                final res = await openCreatePostFlow(context);
-                if (!mounted) return;
-                if (res == true) _load(reset: true);
-              },
-              icon: const Icon(Icons.add),
-              label: Text(context.l10n.tr('post_label')),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (_showScrollTop)
+                    FloatingActionButton.small(
+                      heroTag: 'feed-top',
+                      onPressed: () {
+                        _scroll.animateTo(
+                          0,
+                          duration: const Duration(milliseconds: 350),
+                          curve: Curves.easeOut,
+                        );
+                      },
+                      child: const Icon(Icons.keyboard_arrow_up),
+                    ),
+                  if (_showScrollTop) const SizedBox(height: 10),
+                  FloatingActionButton.extended(
+                    heroTag: 'feed-post',
+                    onPressed: () async {
+                      final res = await openCreatePostFlow(context);
+                      if (!mounted) return;
+                      if (res == true) _load(reset: true);
+                    },
+                    icon: const Icon(Icons.add),
+                    label: Text(context.l10n.tr('post_label')),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-      ),
     );
   }
 }

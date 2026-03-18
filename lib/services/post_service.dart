@@ -109,6 +109,7 @@ class PostService {
     String? marketIntent,
     String? marketTitle,
     double? marketPrice,
+    double? marketPriceMax,
     String shareScope = 'none',
     List<String> taggedUserIds = const [],
   }) async {
@@ -147,6 +148,7 @@ class PostService {
       'market_intent': marketIntent,
       'market_title': marketTitle,
       'market_price': marketPrice,
+      'market_price_max': marketPriceMax,
       'share_scope': shareScope,
     };
 

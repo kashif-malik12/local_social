@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["REPLACE_WITH_TEAM_ID.com.allonssy.app"],
+        "components": [
+          { "/": "/marketplace/product/*", "comment": "Product detail pages" },
+          { "/": "/gigs/service/*",        "comment": "Gig / service detail pages" },
+          { "/": "/foods/*",               "comment": "Food ad detail pages" }
+        ]
+      }
+    ]
+  }
+}

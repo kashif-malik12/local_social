@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -12,6 +14,8 @@ class NetworkVideoPlayer extends StatefulWidget {
   final bool showMuteToggle;
   final bool? autoplay;
   final double muteTopOffset;
+  /// When non-null, overrides internal mute state (controlled externally).
+  final bool? muted;
 
   const NetworkVideoPlayer({
     super.key,
@@ -21,6 +25,7 @@ class NetworkVideoPlayer extends StatefulWidget {
     this.showMuteToggle = false,
     this.autoplay,
     this.muteTopOffset = 12,
+    this.muted,
   });
 
   @override
@@ -34,6 +39,8 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
   bool _failed = false;
   bool _muted = false;
   bool _userPaused = false;
+  bool _showControls = true;
+  Timer? _hideControlsTimer;
   ModalRoute<dynamic>? _route;
   final _visibilityKey = UniqueKey();
 
@@ -42,6 +49,15 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _init();
+  }
+
+  @override
+  void didUpdateWidget(NetworkVideoPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.muted != null && widget.muted != oldWidget.muted) {
+      _muted = widget.muted!;
+      _controller?.setVolume(_muted ? 0 : 1);
+    }
   }
 
   @override
@@ -71,12 +87,32 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
 
   @override
   void dispose() {
+    _hideControlsTimer?.cancel();
     if (_route is PageRoute) {
       appRouteObserver.unsubscribe(this);
     }
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
     super.dispose();
+  }
+
+  void _onTapVideo() {
+    final controller = _controller;
+    if (controller == null) return;
+    if (controller.value.isPlaying) {
+      controller.pause();
+      _userPaused = true;
+      _hideControlsTimer?.cancel();
+      setState(() => _showControls = true);
+    } else {
+      controller.play();
+      _userPaused = false;
+      setState(() => _showControls = true);
+      _hideControlsTimer?.cancel();
+      _hideControlsTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted) setState(() => _showControls = false);
+      });
+    }
   }
 
   @override
@@ -104,11 +140,17 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
     try {
       await controller.initialize();
       controller.setLooping(true);
-      _muted = widget.startMuted;
+      _muted = widget.muted ?? widget.startMuted;
       await controller.setVolume(_muted ? 0 : 1);
       final shouldAutoplay = widget.autoplay ?? AppSettingsService.currentVideoAutoplayEnabled();
       if (shouldAutoplay) {
         await controller.play();
+      }
+      if (shouldAutoplay) {
+        _hideControlsTimer?.cancel();
+        _hideControlsTimer = Timer(const Duration(seconds: 2), () {
+          if (mounted) setState(() => _showControls = false);
+        });
       }
       if (!mounted) {
         await controller.dispose();
@@ -177,6 +219,10 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
           final shouldAutoplay = widget.autoplay ?? AppSettingsService.currentVideoAutoplayEnabled();
           if (shouldAutoplay && !controller.value.isPlaying) {
             controller.play();
+            _hideControlsTimer?.cancel();
+            _hideControlsTimer = Timer(const Duration(seconds: 2), () {
+              if (mounted) setState(() => _showControls = false);
+            });
           }
         }
       },
@@ -203,31 +249,27 @@ class _NetworkVideoPlayerState extends State<NetworkVideoPlayer>
                       child: VideoPlayer(controller),
                     ),
             ),
-            InkWell(
-              onTap: () {
-                if (controller.value.isPlaying) {
-                  controller.pause();
-                  _userPaused = true;
-                } else {
-                  controller.play();
-                  _userPaused = false;
-                }
-                setState(() {});
-              },
-              child: Container(
-                color: Colors.transparent,
-                alignment: Alignment.center,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.45),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Icon(
-                      controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
-                      color: Colors.white,
-                      size: 30,
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _onTapVideo,
+                child: AnimatedOpacity(
+                  opacity: _showControls ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Center(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Icon(
+                          controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+                      ),
                     ),
                   ),
                 ),

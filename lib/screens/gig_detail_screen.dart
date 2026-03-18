@@ -10,6 +10,7 @@ import '../services/reaction_service.dart';
 import '../widgets/global_app_bar.dart';
 import '../widgets/global_bottom_nav.dart';
 import '../widgets/post_media_view.dart';
+import '../widgets/share_button.dart';
 import '../widgets/tagged_content.dart';
 
 class GigDetailScreen extends StatefulWidget {
@@ -399,12 +400,28 @@ class _GigDetailScreenState extends State<GigDetailScreen> {
     final myId = Supabase.instance.client.auth.currentUser?.id;
     final canSendOffer = p != null && myId != null && p.userId != myId;
     final effectivePrice = p == null ? null : (p.marketPrice ?? _priceFromContent(p.content));
+    final priceMax = p?.marketPriceMax;
+    final String priceDisplayText = effectivePrice == null
+        ? (p?.postType == 'service_request' ? 'Budget open' : 'Rate on request')
+        : (priceMax != null && priceMax > effectivePrice
+            ? 'EUR ${effectivePrice.toStringAsFixed(2)} – EUR ${priceMax.toStringAsFixed(2)}'
+            : 'EUR ${effectivePrice.toStringAsFixed(2)}');
 
     return Scaffold(
-      appBar: const GlobalAppBar(
+      appBar: GlobalAppBar(
         title: 'Service details',
         showBackIfPossible: true,
         homeRoute: '/feed',
+        actions: p == null
+            ? null
+            : [
+                ShareButton(
+                  url: gigShareUrl(p.id),
+                  title: (p.marketTitle ?? '').trim().isNotEmpty
+                      ? p.marketTitle!.trim()
+                      : 'Check out this service on Allonssy',
+                ),
+              ],
       ),
       bottomNavigationBar: const GlobalBottomNav(),
       body: _loading
@@ -455,11 +472,7 @@ class _GigDetailScreenState extends State<GigDetailScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                effectivePrice != null
-                                    ? 'EUR ${effectivePrice.toStringAsFixed(2)}'
-                                    : (p.postType == 'service_request'
-                                        ? 'Budget open'
-                                        : 'Rate on request'),
+                                priceDisplayText,
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,

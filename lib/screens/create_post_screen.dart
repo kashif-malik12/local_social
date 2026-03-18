@@ -38,6 +38,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final _videoUrlCtrl = TextEditingController();
   final _marketTitleCtrl = TextEditingController();
   final _marketPriceCtrl = TextEditingController();
+  final _marketPriceMaxCtrl = TextEditingController();
+  bool _priceIsRange = false;
 
   final _mentionService = MentionService(Supabase.instance.client);
 
@@ -79,6 +81,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     _videoUrlCtrl.dispose();
     _marketTitleCtrl.dispose();
     _marketPriceCtrl.dispose();
+    _marketPriceMaxCtrl.dispose();
     super.dispose();
   }
 
@@ -154,6 +157,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       }
       if (!_isServicePost) {
         _selectedServiceCategory = serviceMainCategories.first;
+      }
+      if (!_isMarketPost && !_isServicePost) {
+        _priceIsRange = false;
+        _marketPriceMaxCtrl.clear();
       }
       if (!_isFoodAdPost) {
         _selectedFoodCategory = foodMainCategories.first;
@@ -326,6 +333,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     final rawContent = _contentCtrl.text.trim();
     final marketTitle = _marketTitleCtrl.text.trim();
     final marketPriceRaw = _marketPriceCtrl.text.trim();
+    final marketPriceMaxRaw = _marketPriceMaxCtrl.text.trim();
 
     if (rawContent.isEmpty) {
       _showError(context.l10n.tr('write_something'));
@@ -348,12 +356,28 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
 
     double? marketPrice;
+    double? marketPriceMax;
     if (_isMarketPost ||
         ((_isFoodAdPost || _isServicePost) && marketPriceRaw.isNotEmpty)) {
       marketPrice = double.tryParse(marketPriceRaw);
       if (marketPrice == null || marketPrice < 0) {
         _showError(context.l10n.tr('enter_valid_price'));
         return;
+      }
+      if ((_isMarketPost || _isServicePost) && _priceIsRange) {
+        if (marketPriceMaxRaw.isEmpty) {
+          _showError('Enter a maximum price for the range.');
+          return;
+        }
+        marketPriceMax = double.tryParse(marketPriceMaxRaw);
+        if (marketPriceMax == null || marketPriceMax < 0) {
+          _showError(context.l10n.tr('enter_valid_price'));
+          return;
+        }
+        if (marketPriceMax < marketPrice) {
+          _showError('Maximum price must be greater than minimum price.');
+          return;
+        }
       }
     }
 
@@ -457,6 +481,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         marketIntent: _isMarketPost ? _selectedMarketIntent : null,
         marketTitle: (_isMarketPost || _isServicePost || _isFoodAdPost) ? marketTitle : null,
         marketPrice: (_isMarketPost || _isServicePost || _isFoodAdPost) ? marketPrice : null,
+        marketPriceMax: (_isMarketPost || _isServicePost) && _priceIsRange ? marketPriceMax : null,
         shareScope: _shareScope,
         taggedUserIds: allowedTagIds,
       );
@@ -786,23 +811,87 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: _marketPriceCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        labelText: _isFoodAdPost
-                            ? l10n.tr('food_price_optional')
-                            : (_isServicePost
-                                ? l10n.tr('rate_budget_optional')
-                                : l10n.tr('price')),
-                        hintText: _isFoodAdPost
-                            ? 'e.g. 12.99'
-                            : (_isServicePost ? 'e.g. 50' : 'e.g. 1200'),
-                        prefixText: 'EUR ',
+                    if (_isMarketPost || _isServicePost) ...[
+                      Row(
+                        children: [
+                          const Text('Price type:'),
+                          const SizedBox(width: 12),
+                          ChoiceChip(
+                            label: const Text('Single'),
+                            selected: !_priceIsRange,
+                            onSelected: (_) => setState(() {
+                              _priceIsRange = false;
+                              _marketPriceMaxCtrl.clear();
+                            }),
+                          ),
+                          const SizedBox(width: 8),
+                          ChoiceChip(
+                            label: const Text('Range'),
+                            selected: _priceIsRange,
+                            onSelected: (_) => setState(() => _priceIsRange = true),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 12),
+                      if (_priceIsRange) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _marketPriceCtrl,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: InputDecoration(
+                                  border: const OutlineInputBorder(),
+                                  labelText: _isServicePost ? 'Min rate' : 'Min price',
+                                  hintText: 'e.g. 100',
+                                  prefixText: 'EUR ',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: _marketPriceMaxCtrl,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: InputDecoration(
+                                  border: const OutlineInputBorder(),
+                                  labelText: _isServicePost ? 'Max rate' : 'Max price',
+                                  hintText: 'e.g. 500',
+                                  prefixText: 'EUR ',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                      ] else ...[
+                        TextField(
+                          controller: _marketPriceCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(
+                            border: const OutlineInputBorder(),
+                            labelText: _isServicePost
+                                ? l10n.tr('rate_budget_optional')
+                                : l10n.tr('price'),
+                            hintText: _isServicePost ? 'e.g. 50' : 'e.g. 1200',
+                            prefixText: 'EUR ',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                    ] else ...[
+                      TextField(
+                        controller: _marketPriceCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
+                          labelText: l10n.tr('food_price_optional'),
+                          hintText: 'e.g. 12.99',
+                          prefixText: 'EUR ',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                   ],
                   if (_isMarketPost) ...[
                     DropdownButtonFormField<String>(

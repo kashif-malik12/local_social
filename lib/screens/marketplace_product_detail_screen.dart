@@ -10,6 +10,7 @@ import '../services/reaction_service.dart';
 import '../widgets/global_app_bar.dart';
 import '../widgets/global_bottom_nav.dart';
 import '../widgets/post_media_view.dart';
+import '../widgets/share_button.dart';
 import '../widgets/tagged_content.dart';
 
 class MarketplaceProductDetailScreen extends StatefulWidget {
@@ -408,12 +409,28 @@ class _MarketplaceProductDetailScreenState
     final canSendOffer = p != null && myId != null && p.userId != myId;
     final effectivePrice =
         p == null ? null : (p.marketPrice ?? _priceFromContent(p.content));
+    final priceMax = p?.marketPriceMax;
+    final String priceDisplayText = effectivePrice == null
+        ? (p?.marketIntent == 'buying' ? 'Looking to buy' : 'Price on request')
+        : (priceMax != null && priceMax > effectivePrice
+            ? 'EUR ${effectivePrice.toStringAsFixed(2)} – EUR ${priceMax.toStringAsFixed(2)}'
+            : 'EUR ${effectivePrice.toStringAsFixed(2)}');
 
     return Scaffold(
-      appBar: const GlobalAppBar(
+      appBar: GlobalAppBar(
         title: 'Product details',
         showBackIfPossible: true,
         homeRoute: '/feed',
+        actions: p == null
+            ? null
+            : [
+                ShareButton(
+                  url: marketplaceShareUrl(p.id),
+                  title: (p.marketTitle ?? '').trim().isNotEmpty
+                      ? p.marketTitle!.trim()
+                      : 'Check out this listing on Allonssy',
+                ),
+              ],
       ),
       bottomNavigationBar: const GlobalBottomNav(),
       body: _loading
@@ -464,11 +481,7 @@ class _MarketplaceProductDetailScreenState
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                effectivePrice != null
-                                    ? 'EUR ${effectivePrice.toStringAsFixed(2)}'
-                                    : (p.marketIntent == 'buying'
-                                        ? 'Looking to buy'
-                                        : 'Price on request'),
+                                priceDisplayText,
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,

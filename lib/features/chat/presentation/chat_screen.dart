@@ -313,6 +313,41 @@ class _ChatScreenState extends State<ChatScreen> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  void _openImageFullscreen(String url) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 5.0,
+              child: Center(
+                child: Image.network(url, fit: BoxFit.contain),
+              ),
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: SafeArea(
+                child: IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black45,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildAttachmentComposerPreview() {
     if (_selectedImage == null && _selectedFile == null) {
       return const SizedBox.shrink();
@@ -355,9 +390,12 @@ class _ChatScreenState extends State<ChatScreen> {
           if (payload.text.trim().isNotEmpty) Text(payload.text.trim()),
           if (payload.hasImage) ...[
             if (payload.text.trim().isNotEmpty) const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.network(payload.imageUrl!, width: 220, fit: BoxFit.cover),
+            GestureDetector(
+              onTap: () => _openImageFullscreen(payload.imageUrl!),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.network(payload.imageUrl!, width: 220, fit: BoxFit.cover),
+              ),
             ),
           ],
           if (payload.hasFile) ...[

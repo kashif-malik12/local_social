@@ -17,6 +17,8 @@ class RestaurantsScreen extends StatefulWidget {
 }
 
 class _RestaurantsScreenState extends State<RestaurantsScreen> {
+  static const int _kPageSize = 30;
+
   bool _loading = true;
   String? _error;
   String _search = '';
@@ -26,10 +28,17 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
 
   double? _meLat;
   double? _meLng;
-  List<Map<String, dynamic>> _restaurants = [];
+
+  // Raw server rows, accumulated across pages
+  List<Map<String, dynamic>> _rawRows = [];
+  int _page = 0;
+  bool _hasMore = true;
+  bool _loadingMore = false;
+  late final ScrollController _scrollCtrl;
 
   @override
   void dispose() {
+    _scrollCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -37,7 +46,15 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollCtrl = ScrollController()..addListener(_onScroll);
     _load();
+  }
+
+  void _onScroll() {
+    if (_loadingMore || !_hasMore) return;
+    if (_scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 400) {
+      _loadMore();
+    }
   }
 
   double _distanceKm(double lat1, double lng1, double lat2, double lng2) {
@@ -55,10 +72,63 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
 
   double _toRad(double d) => d * math.pi / 180;
 
+  /// Apply client-side category/search/distance filters and sort by distance.
+  List<Map<String, dynamic>> get _filteredRestaurants {
+    var items = List<Map<String, dynamic>>.from(_rawRows);
+
+    if (_selectedCategory != 'all') {
+      items = items
+          .where((r) => (r['restaurant_type'] ?? '').toString() == _selectedCategory)
+          .toList();
+    }
+
+    if (_search.trim().isNotEmpty) {
+      final q = _search.toLowerCase().trim();
+      items = items.where((r) {
+        return (r['business_name'] ?? '').toString().toLowerCase().contains(q) ||
+            (r['full_name'] ?? '').toString().toLowerCase().contains(q) ||
+            (r['bio'] ?? '').toString().toLowerCase().contains(q) ||
+            (r['business_profile'] ?? '').toString().toLowerCase().contains(q) ||
+            (r['city'] ?? '').toString().toLowerCase().contains(q) ||
+            restaurantCategoryLabel((r['restaurant_type'] ?? '').toString())
+                .toLowerCase()
+                .contains(q);
+      }).toList();
+    }
+
+    if (_meLat != null && _meLng != null) {
+      items = items.where((r) {
+        final lat = (r['latitude'] as num?)?.toDouble();
+        final lng = (r['longitude'] as num?)?.toDouble();
+        if (lat == null || lng == null) return false;
+        return _distanceKm(_meLat!, _meLng!, lat, lng) <= _maxDistanceKm;
+      }).toList();
+
+      items.sort((a, b) {
+        final aLat = (a['latitude'] as num?)?.toDouble();
+        final aLng = (a['longitude'] as num?)?.toDouble();
+        final bLat = (b['latitude'] as num?)?.toDouble();
+        final bLng = (b['longitude'] as num?)?.toDouble();
+        final ad = (aLat != null && aLng != null)
+            ? _distanceKm(_meLat!, _meLng!, aLat, aLng)
+            : 9999.0;
+        final bd = (bLat != null && bLng != null)
+            ? _distanceKm(_meLat!, _meLng!, bLat, bLng)
+            : 9999.0;
+        return ad.compareTo(bd);
+      });
+    }
+
+    return items;
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
+      _rawRows = [];
+      _page = 0;
+      _hasMore = true;
     });
 
     try {
@@ -82,66 +152,28 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
             .select('id, full_name, bio, business_profile, avatar_url, city, latitude, longitude, is_restaurant, restaurant_type, account_type, business_name, job_title, is_disabled')
             .eq('is_restaurant', true)
             .eq('is_disabled', false)
-            .order('business_name');
+            .order('business_name')
+            .range(0, _kPageSize - 1);
         rows = (data as List).cast<Map<String, dynamic>>();
       } on PostgrestException {
         final data = await db
             .from('profiles')
             .select('id, full_name, bio, business_profile, avatar_url, city, latitude, longitude, account_type, business_name, job_title, is_disabled')
             .eq('account_type', 'business')
-            .order('business_name');
+            .order('business_name')
+            .range(0, _kPageSize - 1);
         rows = (data as List)
             .cast<Map<String, dynamic>>()
             .where((r) => r['is_disabled'] != true)
             .toList();
       }
 
-      var items = rows;
-      if (_selectedCategory != 'all') {
-        items = items
-            .where((r) => (r['restaurant_type'] ?? '').toString() == _selectedCategory)
-            .toList();
-      }
-
-      if (_search.trim().isNotEmpty) {
-        final q = _search.toLowerCase().trim();
-        items = items.where((r) {
-          return (r['business_name'] ?? '').toString().toLowerCase().contains(q) ||
-              (r['full_name'] ?? '').toString().toLowerCase().contains(q) ||
-              (r['bio'] ?? '').toString().toLowerCase().contains(q) ||
-              (r['business_profile'] ?? '').toString().toLowerCase().contains(q) ||
-              (r['city'] ?? '').toString().toLowerCase().contains(q) ||
-              restaurantCategoryLabel((r['restaurant_type'] ?? '').toString())
-                  .toLowerCase()
-                  .contains(q);
-        }).toList();
-      }
-
-      if (_meLat != null && _meLng != null) {
-        items = items.where((r) {
-          final lat = (r['latitude'] as num?)?.toDouble();
-          final lng = (r['longitude'] as num?)?.toDouble();
-          if (lat == null || lng == null) return false;
-          return _distanceKm(_meLat!, _meLng!, lat, lng) <= _maxDistanceKm;
-        }).toList();
-
-        items.sort((a, b) {
-          final aLat = (a['latitude'] as num?)?.toDouble();
-          final aLng = (a['longitude'] as num?)?.toDouble();
-          final bLat = (b['latitude'] as num?)?.toDouble();
-          final bLng = (b['longitude'] as num?)?.toDouble();
-          final ad = (aLat != null && aLng != null)
-              ? _distanceKm(_meLat!, _meLng!, aLat, aLng)
-              : 9999.0;
-          final bd = (bLat != null && bLng != null)
-              ? _distanceKm(_meLat!, _meLng!, bLat, bLng)
-              : 9999.0;
-          return ad.compareTo(bd);
-        });
-      }
-
       if (!mounted) return;
-      setState(() => _restaurants = items);
+      setState(() {
+        _rawRows = rows;
+        _page = 1;
+        _hasMore = rows.length == _kPageSize;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -152,9 +184,56 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
     }
   }
 
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+
+    try {
+      final db = Supabase.instance.client;
+      final from = _page * _kPageSize;
+      final to = from + _kPageSize - 1;
+
+      List<Map<String, dynamic>> rows;
+      try {
+        final data = await db
+            .from('profiles')
+            .select('id, full_name, bio, business_profile, avatar_url, city, latitude, longitude, is_restaurant, restaurant_type, account_type, business_name, job_title, is_disabled')
+            .eq('is_restaurant', true)
+            .eq('is_disabled', false)
+            .order('business_name')
+            .range(from, to);
+        rows = (data as List).cast<Map<String, dynamic>>();
+      } on PostgrestException {
+        final data = await db
+            .from('profiles')
+            .select('id, full_name, bio, business_profile, avatar_url, city, latitude, longitude, account_type, business_name, job_title, is_disabled')
+            .eq('account_type', 'business')
+            .order('business_name')
+            .range(from, to);
+        rows = (data as List)
+            .cast<Map<String, dynamic>>()
+            .where((r) => r['is_disabled'] != true)
+            .toList();
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _rawRows = [..._rawRows, ...rows];
+        _page++;
+        _hasMore = rows.length == _kPageSize;
+      });
+    } catch (_) {
+      // silently ignore load-more errors
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final restaurants = _filteredRestaurants;
+
     return Scaffold(
       appBar: GlobalAppBar(
         title: l10n.tr('restaurants'),
@@ -236,21 +315,35 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
                     ? Center(child: Text(l10n.tr('error_with_detail', args: {'error': '$_error'})))
-                    : _restaurants.isEmpty
+                    : restaurants.isEmpty
                         ? Center(child: Text(l10n.tr('no_restaurants_found')))
-                        : ListView.separated(
-                            itemCount: _restaurants.length,
-                            separatorBuilder: (_, _) => const Divider(height: 1),
-                            itemBuilder: (context, i) {
-                              final r = _restaurants[i];
-                              final lat = (r['latitude'] as num?)?.toDouble();
-                              final lng = (r['longitude'] as num?)?.toDouble();
-                              final dist = (_meLat != null && _meLng != null && lat != null && lng != null)
-                                  ? _distanceKm(_meLat!, _meLng!, lat, lng)
-                                  : null;
+                        : RefreshIndicator(
+                            onRefresh: _load,
+                            child: ListView.separated(
+                              controller: _scrollCtrl,
+                              itemCount: restaurants.length + (_loadingMore || _hasMore ? 1 : 0),
+                              separatorBuilder: (context, index) => const Divider(height: 1),
+                              itemBuilder: (context, i) {
+                                // Footer item
+                                if (i >= restaurants.length) {
+                                  return Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Center(
+                                      child: _loadingMore
+                                          ? const CircularProgressIndicator()
+                                          : const SizedBox.shrink(),
+                                    ),
+                                  );
+                                }
 
-                              final id = (r['id'] ?? '').toString();
-                              
+                                final r = restaurants[i];
+                                final lat = (r['latitude'] as num?)?.toDouble();
+                                final lng = (r['longitude'] as num?)?.toDouble();
+                                final dist = (_meLat != null && _meLng != null && lat != null && lng != null)
+                                    ? _distanceKm(_meLat!, _meLng!, lat, lng)
+                                    : null;
+
+                                final id = (r['id'] ?? '').toString();
                                 final bName = (r['business_name'] as String?) ?? (r['full_name'] as String?) ?? l10n.tr('restaurant');
                                 final job = r['job_title'] as String?;
                                 final businessProfile = (r['business_profile'] as String?) ?? '';
@@ -258,62 +351,63 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
                                 return Card(
                                   margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                   child: ListTile(
-                                  onTap: id.isEmpty ? null : () => context.push('/p/$id'),
-                                  contentPadding: const EdgeInsets.all(12),
-                                  leading: ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Container(
-                                      width: 64,
-                                      height: 64,
-                                      color: Colors.grey.shade200,
-                                      padding: const EdgeInsets.all(6),
-                                      child: (r['avatar_url'] ?? '').toString().isNotEmpty
-                                          ? Image.network(
-                                              (r['avatar_url'] ?? '').toString(),
-                                              fit: BoxFit.contain,
-                                            )
-                                          : const Icon(Icons.storefront_outlined),
+                                    onTap: id.isEmpty ? null : () => context.push('/p/$id'),
+                                    contentPadding: const EdgeInsets.all(12),
+                                    leading: ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Container(
+                                        width: 64,
+                                        height: 64,
+                                        color: Colors.grey.shade200,
+                                        padding: const EdgeInsets.all(6),
+                                        child: (r['avatar_url'] ?? '').toString().isNotEmpty
+                                            ? Image.network(
+                                                (r['avatar_url'] ?? '').toString(),
+                                                fit: BoxFit.contain,
+                                              )
+                                            : const Icon(Icons.storefront_outlined),
+                                      ),
                                     ),
-                                  ),
-                                  title: Row(
-                                    children: [
-                                      Expanded(child: Text(bName)),
-                                      const Icon(Icons.verified, color: Colors.green, size: 18),
-                                    ],
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (job != null && job.isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(bottom: 2),
-                                          child: Text(
-                                            job,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
+                                    title: Row(
+                                      children: [
+                                        Expanded(child: Text(bName)),
+                                        const Icon(Icons.verified, color: Colors.green, size: 18),
+                                      ],
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        if (job != null && job.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(bottom: 2),
+                                            child: Text(
+                                              job,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                           ),
+                                        Text(
+                                          '${(r['restaurant_type'] ?? '').toString().isNotEmpty ? restaurantCategoryLabel((r['restaurant_type'] ?? '').toString()) : l10n.tr('restaurant')}'
+                                          '${dist != null ? ' • ${dist.toStringAsFixed(1)} km' : ''}'
+                                          '${(r['city'] ?? '').toString().isNotEmpty ? ' • ${(r['city'] ?? '').toString()}' : ''}',
                                         ),
-                                      Text(
-                                        '${(r['restaurant_type'] ?? '').toString().isNotEmpty ? restaurantCategoryLabel((r['restaurant_type'] ?? '').toString()) : l10n.tr('restaurant')}'
-                                        '${dist != null ? ' • ${dist.toStringAsFixed(1)} km' : ''}'
-                                        '${(r['city'] ?? '').toString().isNotEmpty ? ' • ${(r['city'] ?? '').toString()}' : ''}',
-                                      ),
-                                      if (businessProfile.trim().isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(top: 4),
-                                          child: Text(
-                                            businessProfile.trim(),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
+                                        if (businessProfile.trim().isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 4),
+                                            child: Text(
+                                              businessProfile.trim(),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
                                           ),
-                                        ),
-                                    ],
-                                  ),
+                                      ],
+                                    ),
                                   ),
                                 );
-                            },
+                              },
+                            ),
                           ),
           ),
         ],

@@ -36,6 +36,9 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
 
   List<Map<String, dynamic>> _postReports = [];
   List<Map<String, dynamic>> _userReports = [];
+  int _reportsOffset = 0;
+  bool _reportsHasMore = true;
+  bool _loadingMoreReports = false;
   Map<String, int> _stats = const {};
   
   List<Map<String, dynamic>> _marketplacePosts = [];
@@ -161,8 +164,11 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
           .from('post_reports')
           .select('id, created_at, reporter_id, post_id, reason, details, status')
           .eq('status', _statusFilter)
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .limit(100);
       _postReports = List<Map<String, dynamic>>.from(rows);
+      _reportsOffset = 0;
+      _reportsHasMore = rows.length >= 100;
     } catch (e) {
       debugPrint('Post reports error: $e');
     }
@@ -174,10 +180,36 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
           .from('user_reports')
           .select('id, created_at, reporter_id, reported_user_id, reason, details, status')
           .eq('status', _statusFilter)
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .limit(100);
       _userReports = List<Map<String, dynamic>>.from(rows);
     } catch (e) {
       debugPrint('User reports error: $e');
+    }
+  }
+
+  Future<void> _loadMoreReports() async {
+    if (_loadingMoreReports || !_reportsHasMore) return;
+    setState(() => _loadingMoreReports = true);
+    try {
+      final nextOffset = _reportsOffset + 100;
+      final rows = await _db
+          .from('post_reports')
+          .select('id, created_at, reporter_id, post_id, reason, details, status')
+          .eq('status', _statusFilter)
+          .order('created_at', ascending: false)
+          .range(nextOffset, nextOffset + 99);
+      if (mounted) {
+        setState(() {
+          _postReports = [..._postReports, ...List<Map<String, dynamic>>.from(rows)];
+          _reportsOffset = nextOffset;
+          _reportsHasMore = rows.length >= 100;
+        });
+      }
+    } catch (e) {
+      debugPrint('Load more reports error: $e');
+    } finally {
+      if (mounted) setState(() => _loadingMoreReports = false);
     }
   }
 
@@ -897,7 +929,11 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
   }
 
   void _setFilter(String value) {
-    setState(() => _statusFilter = value);
+    setState(() {
+      _statusFilter = value;
+      _reportsOffset = 0;
+      _reportsHasMore = true;
+    });
     _loadPostReports();
     _loadUserReports();
   }
@@ -2329,6 +2365,18 @@ class _AdminLiveScreenState extends State<AdminLiveScreen>
             children: [
               const Text('Post Reports', style: TextStyle(fontWeight: FontWeight.bold)),
               ..._postReports.map((r) => _buildReportTile(r, 'post_reports')),
+              if (_reportsHasMore)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Center(
+                    child: _loadingMoreReports
+                        ? const CircularProgressIndicator()
+                        : TextButton(
+                            onPressed: _loadMoreReports,
+                            child: const Text('Load more post reports'),
+                          ),
+                  ),
+                ),
               const SizedBox(height: 20),
               const Text('User Reports', style: TextStyle(fontWeight: FontWeight.bold)),
               ..._userReports.map((r) => _buildReportTile(r, 'user_reports')),

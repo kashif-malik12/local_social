@@ -18,6 +18,7 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
   final _db = Supabase.instance.client;
   late final OfferChatService _service = OfferChatService(_db);
   final _textCtrl = TextEditingController();
+  late final ScrollController _scrollCtrl;
 
   bool _loading = true;
   bool _busy = false;
@@ -31,17 +32,21 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
   String _currentOfferStatus = 'none';
   String? _currentOfferBy;
   List<Map<String, dynamic>> _messages = [];
+  bool _hasOlderMessages = true;
+  bool _loadingOlder = false;
   RealtimeChannel? _msgChannel;
   RealtimeChannel? _convChannel;
 
   @override
   void initState() {
     super.initState();
+    _scrollCtrl = ScrollController()..addListener(_onScroll);
     _init();
   }
 
   @override
   void dispose() {
+    _scrollCtrl.dispose();
     final msgChannel = _msgChannel;
     _msgChannel = null;
     if (msgChannel != null) {
@@ -56,6 +61,13 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
 
     _textCtrl.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_loadingOlder || !_hasOlderMessages) return;
+    if (_scrollCtrl.position.pixels <= 200) {
+      _loadOlderMessages();
+    }
   }
 
   Future<void> _init() async {
@@ -124,11 +136,39 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
   Future<void> _reloadMessages() async {
     final rows = await _service.getMessages(
       conversationId: widget.conversationId,
-      limit: 200,
+      limit: 50,
     );
 
     if (!mounted) return;
-    setState(() => _messages = rows.reversed.toList());
+    setState(() {
+      _messages = rows.reversed.toList();
+      _hasOlderMessages = rows.length == 50;
+    });
+  }
+
+  Future<void> _loadOlderMessages() async {
+    if (_loadingOlder || !_hasOlderMessages) return;
+    if (_messages.isEmpty) return;
+
+    setState(() => _loadingOlder = true);
+    try {
+      final oldestCreatedAt = _messages.first['created_at'] as String?;
+      final rows = await _service.getMessages(
+        conversationId: widget.conversationId,
+        limit: 50,
+        beforeIso: oldestCreatedAt,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _messages = [...rows.reversed, ..._messages];
+        _hasOlderMessages = rows.length == 50;
+      });
+    } catch (_) {
+      // silently ignore
+    } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
   }
 
   void _subscribeRealtime() {
@@ -556,10 +596,36 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
                               ),
                               Expanded(
                                 child: ListView.builder(
+                                  controller: _scrollCtrl,
                                   padding: const EdgeInsets.all(12),
-                                  itemCount: _messages.length,
+                                  itemCount: _messages.length + (_loadingOlder ? 1 : 0),
                                   itemBuilder: (context, i) {
-                                    final m = _messages[i];
+                                    // Show "loading older" indicator at top
+                                    if (_loadingOlder && i == 0) {
+                                      return const Padding(
+                                        padding: EdgeInsets.symmetric(vertical: 8),
+                                        child: Center(
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              SizedBox(
+                                                width: 14,
+                                                height: 14,
+                                                child: CircularProgressIndicator(strokeWidth: 2),
+                                              ),
+                                              SizedBox(width: 8),
+                                              Text(
+                                                'Loading older messages...',
+                                                style: TextStyle(fontSize: 12),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    }
+
+                                    final msgIndex = _loadingOlder ? i - 1 : i;
+                                    final m = _messages[msgIndex];
                                     final senderId = m['sender_id'] as String?;
                                     final isMe = senderId != null && senderId == myId;
                                     final kind = (m['message_type'] as String?) ?? 'text';

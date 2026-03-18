@@ -17,6 +17,8 @@ class BusinessesScreen extends StatefulWidget {
 }
 
 class _BusinessesScreenState extends State<BusinessesScreen> {
+  static const int _kPageSize = 30;
+
   bool _loading = true;
   String? _error;
   String _search = '';
@@ -26,18 +28,33 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
 
   double? _meLat;
   double? _meLng;
-  List<Map<String, dynamic>> _businesses = [];
+
+  // Raw server rows, accumulated across pages
+  List<Map<String, dynamic>> _rawRows = [];
+  int _page = 0;
+  bool _hasMore = true;
+  bool _loadingMore = false;
+  late final ScrollController _scrollCtrl;
 
   @override
   void initState() {
     super.initState();
+    _scrollCtrl = ScrollController()..addListener(_onScroll);
     _load();
   }
 
   @override
   void dispose() {
+    _scrollCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_loadingMore || !_hasMore) return;
+    if (_scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 400) {
+      _loadMore();
+    }
   }
 
   double _toRad(double d) => d * math.pi / 180;
@@ -55,10 +72,63 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
     return earth * c;
   }
 
+  /// Apply client-side category/search/distance filters and sort by distance.
+  List<Map<String, dynamic>> get _filteredBusinesses {
+    var items = List<Map<String, dynamic>>.from(_rawRows);
+
+    if (_selectedCategory != 'all') {
+      items = items
+          .where((r) => (r['business_type'] ?? '').toString() == _selectedCategory)
+          .toList();
+    }
+
+    if (_search.trim().isNotEmpty) {
+      final q = _search.toLowerCase().trim();
+      items = items.where((r) {
+        return (r['business_name'] ?? '').toString().toLowerCase().contains(q) ||
+            (r['full_name'] ?? '').toString().toLowerCase().contains(q) ||
+            (r['bio'] ?? '').toString().toLowerCase().contains(q) ||
+            (r['business_profile'] ?? '').toString().toLowerCase().contains(q) ||
+            (r['city'] ?? '').toString().toLowerCase().contains(q) ||
+            businessCategoryLabel((r['business_type'] ?? '').toString())
+                .toLowerCase()
+                .contains(q);
+      }).toList();
+    }
+
+    if (_meLat != null && _meLng != null) {
+      items = items.where((r) {
+        final lat = (r['latitude'] as num?)?.toDouble();
+        final lng = (r['longitude'] as num?)?.toDouble();
+        if (lat == null || lng == null) return false;
+        return _distanceKm(_meLat!, _meLng!, lat, lng) <= _maxDistanceKm;
+      }).toList();
+
+      items.sort((a, b) {
+        final aLat = (a['latitude'] as num?)?.toDouble();
+        final aLng = (a['longitude'] as num?)?.toDouble();
+        final bLat = (b['latitude'] as num?)?.toDouble();
+        final bLng = (b['longitude'] as num?)?.toDouble();
+        final ad = (aLat != null && aLng != null)
+            ? _distanceKm(_meLat!, _meLng!, aLat, aLng)
+            : 9999.0;
+        final bd = (bLat != null && bLng != null)
+            ? _distanceKm(_meLat!, _meLng!, bLat, bLng)
+            : 9999.0;
+        return ad.compareTo(bd);
+      });
+    }
+
+    return items;
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
+      _rawRows = [];
+      _page = 0;
+      _hasMore = true;
     });
 
     try {
@@ -84,14 +154,16 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
             .eq('account_type', 'business')
             .eq('is_restaurant', false)
             .eq('is_disabled', false)
-            .order('business_name');
+            .order('business_name')
+            .range(0, _kPageSize - 1);
         rows = (data as List).cast<Map<String, dynamic>>();
       } on PostgrestException {
         final data = await db
             .from('profiles')
             .select('id, full_name, business_name, job_title, bio, avatar_url, city, latitude, longitude, account_type, business_type, is_disabled')
             .eq('account_type', 'business')
-            .order('business_name');
+            .order('business_name')
+            .range(0, _kPageSize - 1);
 
         rows = (data as List)
             .cast<Map<String, dynamic>>()
@@ -99,53 +171,12 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
             .toList();
       }
 
-      var items = rows;
-
-      if (_selectedCategory != 'all') {
-        items = items
-            .where((r) => (r['business_type'] ?? '').toString() == _selectedCategory)
-            .toList();
-      }
-
-      if (_search.trim().isNotEmpty) {
-        final q = _search.toLowerCase().trim();
-        items = items.where((r) {
-          return (r['business_name'] ?? '').toString().toLowerCase().contains(q) ||
-              (r['full_name'] ?? '').toString().toLowerCase().contains(q) ||
-              (r['bio'] ?? '').toString().toLowerCase().contains(q) ||
-              (r['business_profile'] ?? '').toString().toLowerCase().contains(q) ||
-              (r['city'] ?? '').toString().toLowerCase().contains(q) ||
-              businessCategoryLabel((r['business_type'] ?? '').toString())
-                  .toLowerCase()
-                  .contains(q);
-        }).toList();
-      }
-
-      if (_meLat != null && _meLng != null) {
-        items = items.where((r) {
-          final lat = (r['latitude'] as num?)?.toDouble();
-          final lng = (r['longitude'] as num?)?.toDouble();
-          if (lat == null || lng == null) return false;
-          return _distanceKm(_meLat!, _meLng!, lat, lng) <= _maxDistanceKm;
-        }).toList();
-
-        items.sort((a, b) {
-          final aLat = (a['latitude'] as num?)?.toDouble();
-          final aLng = (a['longitude'] as num?)?.toDouble();
-          final bLat = (b['latitude'] as num?)?.toDouble();
-          final bLng = (b['longitude'] as num?)?.toDouble();
-          final ad = (aLat != null && aLng != null)
-              ? _distanceKm(_meLat!, _meLng!, aLat, aLng)
-              : 9999.0;
-          final bd = (bLat != null && bLng != null)
-              ? _distanceKm(_meLat!, _meLng!, bLat, bLng)
-              : 9999.0;
-          return ad.compareTo(bd);
-        });
-      }
-
       if (!mounted) return;
-      setState(() => _businesses = items);
+      setState(() {
+        _rawRows = rows;
+        _page = 1;
+        _hasMore = rows.length == _kPageSize;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -156,9 +187,59 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
     }
   }
 
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+
+    try {
+      final db = Supabase.instance.client;
+      final from = _page * _kPageSize;
+      final to = from + _kPageSize - 1;
+
+      List<Map<String, dynamic>> rows;
+      try {
+        final data = await db
+            .from('profiles')
+            .select(
+                'id, full_name, business_name, job_title, bio, business_profile, avatar_url, city, latitude, longitude, account_type, is_restaurant, business_type, is_disabled')
+            .eq('account_type', 'business')
+            .eq('is_restaurant', false)
+            .eq('is_disabled', false)
+            .order('business_name')
+            .range(from, to);
+        rows = (data as List).cast<Map<String, dynamic>>();
+      } on PostgrestException {
+        final data = await db
+            .from('profiles')
+            .select('id, full_name, business_name, job_title, bio, avatar_url, city, latitude, longitude, account_type, business_type, is_disabled')
+            .eq('account_type', 'business')
+            .order('business_name')
+            .range(from, to);
+
+        rows = (data as List)
+            .cast<Map<String, dynamic>>()
+            .where((r) => r['is_restaurant'] != true && r['is_disabled'] != true)
+            .toList();
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _rawRows = [..._rawRows, ...rows];
+        _page++;
+        _hasMore = rows.length == _kPageSize;
+      });
+    } catch (_) {
+      // silently ignore load-more errors
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final businesses = _filteredBusinesses;
+
     return Scaffold(
       appBar: GlobalAppBar(
         title: l10n.tr('businesses'),
@@ -240,23 +321,38 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
                     ? Center(child: Text(l10n.tr('error_with_detail', args: {'error': '$_error'})))
-                    : _businesses.isEmpty
+                    : businesses.isEmpty
                         ? Center(child: Text(l10n.tr('no_businesses_found')))
-                        : ListView.separated(
-                            itemCount: _businesses.length,
-                            separatorBuilder: (_, _) => const Divider(height: 1),
-                            itemBuilder: (context, i) {
-                              final b = _businesses[i];
-                              final lat = (b['latitude'] as num?)?.toDouble();
-                              final lng = (b['longitude'] as num?)?.toDouble();
-                              final dist = (_meLat != null &&
-                                      _meLng != null &&
-                                      lat != null &&
-                                      lng != null)
-                                  ? _distanceKm(_meLat!, _meLng!, lat, lng)
-                                  : null;
+                        : RefreshIndicator(
+                            onRefresh: _load,
+                            child: ListView.separated(
+                              controller: _scrollCtrl,
+                              itemCount: businesses.length + (_loadingMore || _hasMore ? 1 : 0),
+                              separatorBuilder: (context, index) => const Divider(height: 1),
+                              itemBuilder: (context, i) {
+                                // Footer item
+                                if (i >= businesses.length) {
+                                  return Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Center(
+                                      child: _loadingMore
+                                          ? const CircularProgressIndicator()
+                                          : const SizedBox.shrink(),
+                                    ),
+                                  );
+                                }
 
-                              final id = (b['id'] ?? '').toString();
+                                final b = businesses[i];
+                                final lat = (b['latitude'] as num?)?.toDouble();
+                                final lng = (b['longitude'] as num?)?.toDouble();
+                                final dist = (_meLat != null &&
+                                        _meLng != null &&
+                                        lat != null &&
+                                        lng != null)
+                                    ? _distanceKm(_meLat!, _meLng!, lat, lng)
+                                    : null;
+
+                                final id = (b['id'] ?? '').toString();
 
                                 final userName = (b['full_name'] as String?) ?? '';
                                 final bName = (b['business_name'] as String?) ?? userName;
@@ -267,68 +363,69 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
                                 return Card(
                                   margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                   child: ListTile(
-                                  onTap: id.isEmpty ? null : () => context.push('/p/$id'),
-                                  contentPadding: const EdgeInsets.all(12),
-                                  leading: ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Container(
-                                      width: 64,
-                                      height: 64,
-                                      color: Colors.grey.shade200,
-                                      padding: const EdgeInsets.all(6),
-                                      child: (b['avatar_url'] ?? '').toString().isNotEmpty
-                                          ? Image.network(
-                                              (b['avatar_url'] ?? '').toString(),
-                                              fit: BoxFit.contain,
-                                            )
-                                          : const Icon(Icons.business),
+                                    onTap: id.isEmpty ? null : () => context.push('/p/$id'),
+                                    contentPadding: const EdgeInsets.all(12),
+                                    leading: ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Container(
+                                        width: 64,
+                                        height: 64,
+                                        color: Colors.grey.shade200,
+                                        padding: const EdgeInsets.all(6),
+                                        child: (b['avatar_url'] ?? '').toString().isNotEmpty
+                                            ? Image.network(
+                                                (b['avatar_url'] ?? '').toString(),
+                                                fit: BoxFit.contain,
+                                              )
+                                            : const Icon(Icons.business),
+                                      ),
+                                    ),
+                                    title: Text(userName.isNotEmpty ? userName : bName),
+                                    subtitle: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        if (bName.isNotEmpty && bName != userName)
+                                          Padding(
+                                            padding: const EdgeInsets.only(bottom: 2),
+                                            child: Text(
+                                              bName,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        if (job != null && job.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(bottom: 2),
+                                            child: Text(
+                                              job,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        Text(
+                                          '${(b['business_type'] ?? '').toString().isNotEmpty ? businessCategoryLabel((b['business_type'] ?? '').toString()) : l10n.tr('business')}'
+                                          '${dist != null ? ' • ${dist.toStringAsFixed(1)} km' : ''}'
+                                          '${(b['city'] ?? '').toString().isNotEmpty ? ' • ${(b['city'] ?? '').toString()}' : ''}',
+                                        ),
+                                        if (businessProfile.trim().isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 4),
+                                            child: Text(
+                                              businessProfile.trim(),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
-                                  title: Text(userName.isNotEmpty ? userName : bName),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (bName.isNotEmpty && bName != userName)
-                                        Padding(
-                                          padding: const EdgeInsets.only(bottom: 2),
-                                          child: Text(
-                                            bName,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ),
-                                      if (job != null && job.isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(bottom: 2),
-                                          child: Text(
-                                            job,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                      Text(
-                                        '${(b['business_type'] ?? '').toString().isNotEmpty ? businessCategoryLabel((b['business_type'] ?? '').toString()) : l10n.tr('business')}'
-                                        '${dist != null ? ' • ${dist.toStringAsFixed(1)} km' : ''}'
-                                        '${(b['city'] ?? '').toString().isNotEmpty ? ' • ${(b['city'] ?? '').toString()}' : ''}',
-                                      ),
-                                      if (businessProfile.trim().isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(top: 4),
-                                          child: Text(
-                                            businessProfile.trim(),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  ),
                                 );
-                            },
+                              },
+                            ),
                           ),
           ),
         ],

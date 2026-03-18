@@ -55,6 +55,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   bool _postsLoading = true;
   String? _postsError;
   List<Post> _posts = [];
+  int _postsPage = 0;
+  bool _postsHasMore = true;
+  bool _postsLoadingMore = false;
 
   // ✅ Portfolio (business/org only)
   bool _portfolioLoading = true;
@@ -983,6 +986,18 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               ),
             ),
           ),
+        if (_postsHasMore)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Center(
+              child: _postsLoadingMore
+                  ? const CircularProgressIndicator()
+                  : TextButton(
+                      onPressed: _loadMorePosts,
+                      child: const Text('Load more posts'),
+                    ),
+            ),
+          ),
       ],
     );
   }
@@ -1204,6 +1219,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     setState(() {
       _postsLoading = true;
       _postsError = null;
+      _postsPage = 0;
+      _postsHasMore = true;
     });
 
     try {
@@ -1211,7 +1228,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           .from('posts')
           .select('*, profiles(full_name, avatar_url)')
           .eq('user_id', widget.profileId)
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .range(0, 19);
 
       final list = (rows as List)
           .map((e) => Post.fromMap(e as Map<String, dynamic>))
@@ -1221,11 +1239,52 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             return type == 'post' || type == '';
           })
           .toList();
-      if (mounted) setState(() => _posts = list);
+      if (mounted) {
+        setState(() {
+          _posts = list;
+          _postsPage = 1;
+          _postsHasMore = rows.length == 20;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _postsError = e.toString());
     } finally {
       if (mounted) setState(() => _postsLoading = false);
+    }
+  }
+
+  Future<void> _loadMorePosts() async {
+    if (_postsLoadingMore || !_postsHasMore) return;
+    setState(() => _postsLoadingMore = true);
+    try {
+      final from = _postsPage * 20;
+      final to = from + 19;
+      final rows = await _db
+          .from('posts')
+          .select('*, profiles(full_name, avatar_url)')
+          .eq('user_id', widget.profileId)
+          .order('created_at', ascending: false)
+          .range(from, to);
+
+      final newPosts = (rows as List)
+          .map((e) => Post.fromMap(e as Map<String, dynamic>))
+          .where((post) {
+            final type = (post.postType ?? '').trim();
+            return type == 'post' || type == '';
+          })
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _posts = [..._posts, ...newPosts];
+          _postsPage++;
+          _postsHasMore = rows.length == 20;
+        });
+      }
+    } catch (_) {
+      // silently ignore
+    } finally {
+      if (mounted) setState(() => _postsLoadingMore = false);
     }
   }
 

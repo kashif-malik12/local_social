@@ -19,13 +19,22 @@ class FoodsScreen extends StatefulWidget {
 }
 
 class _FoodsScreenState extends State<FoodsScreen> {
+  static const int _kPageSize = 24;
+
   bool _loading = true;
   String? _error;
   String _selectedCategory = 'all';
   String _sortBy = 'date_desc';
   String _search = '';
   final _searchCtrl = TextEditingController();
-  List<Post> _posts = [];
+
+  // Raw server rows, accumulated across pages
+  List<Map<String, dynamic>> _rawRows = [];
+  int _page = 0;
+  bool _hasMore = true;
+  bool _loadingMore = false;
+  late final ScrollController _scrollCtrl;
+
   double? _meLat;
   double? _meLng;
 
@@ -49,13 +58,22 @@ class _FoodsScreenState extends State<FoodsScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollCtrl = ScrollController()..addListener(_onScroll);
     _load();
   }
 
   @override
   void dispose() {
+    _scrollCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_loadingMore || !_hasMore) return;
+    if (_scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 400) {
+      _loadMore();
+    }
   }
 
   double _toRad(double d) => d * math.pi / 180;
@@ -100,10 +118,36 @@ class _FoodsScreenState extends State<FoodsScreen> {
     }
   }
 
+  /// Compute the filtered + sorted list from raw server rows.
+  List<Post> get _filteredFoods {
+    var items = _rawRows.map((e) => Post.fromMap(e)).toList();
+
+    if (_selectedCategory != 'all') {
+      items = items.where((p) => (p.marketCategory ?? '') == _selectedCategory).toList();
+    }
+
+    if (_search.trim().isNotEmpty) {
+      final q = _search.trim().toLowerCase();
+      items = items.where((p) {
+        return (p.marketTitle ?? '').toLowerCase().contains(q) ||
+            p.content.toLowerCase().contains(q) ||
+            (p.authorBusinessName ?? '').toLowerCase().contains(q) ||
+            (p.authorName ?? '').toLowerCase().contains(q) ||
+            foodCategoryLabel(p.marketCategory ?? '').toLowerCase().contains(q);
+      }).toList();
+    }
+
+    _sortItems(items);
+    return items;
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
+      _rawRows = [];
+      _page = 0;
+      _hasMore = true;
     });
 
     try {
@@ -123,31 +167,17 @@ class _FoodsScreenState extends State<FoodsScreen> {
           .select('*, profiles(full_name, business_name, avatar_url, city, zipcode)')
           .inFilter('post_type', ['food_ad', 'food'])
           .order('created_at', ascending: false)
-          .limit(150);
+          .range(0, _kPageSize - 1);
 
       final rows = await PostService(Supabase.instance.client)
           .excludeUnavailableAuthorRows((data as List).cast<Map<String, dynamic>>());
-      var items = rows.map((e) => Post.fromMap(e)).toList();
-
-      if (_selectedCategory != 'all') {
-        items = items.where((p) => (p.marketCategory ?? '') == _selectedCategory).toList();
-      }
-
-      if (_search.trim().isNotEmpty) {
-        final q = _search.trim().toLowerCase();
-        items = items.where((p) {
-          return (p.marketTitle ?? '').toLowerCase().contains(q) ||
-              p.content.toLowerCase().contains(q) ||
-              (p.authorBusinessName ?? '').toLowerCase().contains(q) ||
-              (p.authorName ?? '').toLowerCase().contains(q) ||
-              foodCategoryLabel(p.marketCategory ?? '').toLowerCase().contains(q);
-        }).toList();
-      }
-
-      _sortItems(items);
 
       if (!mounted) return;
-      setState(() => _posts = items);
+      setState(() {
+        _rawRows = rows;
+        _page = 1;
+        _hasMore = rows.length == _kPageSize;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -155,6 +185,37 @@ class _FoodsScreenState extends State<FoodsScreen> {
       if (mounted) {
         setState(() => _loading = false);
       }
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+
+    try {
+      final from = _page * _kPageSize;
+      final to = from + _kPageSize - 1;
+
+      final data = await Supabase.instance.client
+          .from('posts')
+          .select('*, profiles(full_name, business_name, avatar_url, city, zipcode)')
+          .inFilter('post_type', ['food_ad', 'food'])
+          .order('created_at', ascending: false)
+          .range(from, to);
+
+      final rows = await PostService(Supabase.instance.client)
+          .excludeUnavailableAuthorRows((data as List).cast<Map<String, dynamic>>());
+
+      if (!mounted) return;
+      setState(() {
+        _rawRows = [..._rawRows, ...rows];
+        _page++;
+        _hasMore = rows.length == _kPageSize;
+      });
+    } catch (_) {
+      // silently ignore load-more errors
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
@@ -244,130 +305,167 @@ class _FoodsScreenState extends State<FoodsScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
                     ? Center(child: Text(l10n.tr('error_with_detail', args: {'error': '$_error'})))
-                    : _posts.isEmpty
-                        ? Center(child: Text(l10n.tr('no_food_ads_found')))
-                        : LayoutBuilder(
-                            builder: (context, constraints) {
+                    : RefreshIndicator(
+                        onRefresh: _load,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final posts = _filteredFoods;
+                            final showFooter = _loadingMore || _hasMore;
+                            final itemCount = posts.isEmpty
+                                ? 1
+                                : posts.length + (showFooter ? 1 : 0);
+
+                            if (posts.isEmpty) {
                               return GridView.builder(
+                                controller: _scrollCtrl,
                                 padding: const EdgeInsets.all(12),
                                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: _gridCount(constraints.maxWidth),
-                                  childAspectRatio: _gridAspectRatio(
-                                    constraints.maxWidth,
-                                  ),
+                                  childAspectRatio: _gridAspectRatio(constraints.maxWidth),
                                   crossAxisSpacing: 10,
                                   mainAxisSpacing: 10,
                                 ),
-                                itemCount: _posts.length,
-                                itemBuilder: (context, index) {
-                              final p = _posts[index];
-                              final distanceKm = _distanceKm(p);
-                              final title = (p.marketTitle ?? '').trim().isNotEmpty
-                                  ? p.marketTitle!.trim()
-                                  : _plainListingText(p.content);
-                              final price = p.marketPrice != null
-                                  ? '€${p.marketPrice!.toStringAsFixed(2)}'
-                                  : l10n.tr('price_on_request');
+                                itemCount: 1,
+                                itemBuilder: (context, index) => Center(
+                                  child: Text(l10n.tr('no_food_ads_found')),
+                                ),
+                              );
+                            }
 
-                              return InkWell(
-                                borderRadius: BorderRadius.circular(12),
-                                onTap: () => context.push('/foods/${p.id}'),
-                                child: Ink(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.black12),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      SizedBox(
-                                        height: 112,
-                                        child: ClipRRect(
-                                          borderRadius: const BorderRadius.vertical(
-                                            top: Radius.circular(12),
-                                          ),
-                                          child: Container(
-                                            width: double.infinity,
-                                            color: Colors.grey.shade200,
-                                            padding: const EdgeInsets.all(6),
-                                            child: p.imageUrl != null && p.imageUrl!.isNotEmpty
-                                                ? Image.network(
-                                                    p.imageUrl!,
-                                                    fit: BoxFit.contain,
-                                                    alignment: Alignment.center,
-                                                  )
-                                                : const Icon(Icons.fastfood, size: 40),
+                            return GridView.builder(
+                              controller: _scrollCtrl,
+                              padding: const EdgeInsets.all(12),
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: _gridCount(constraints.maxWidth),
+                                childAspectRatio: _gridAspectRatio(
+                                  constraints.maxWidth,
+                                ),
+                                crossAxisSpacing: 10,
+                                mainAxisSpacing: 10,
+                              ),
+                              itemCount: itemCount,
+                              itemBuilder: (context, index) {
+                                // Footer item
+                                if (index >= posts.length) {
+                                  return Center(
+                                    child: _loadingMore
+                                        ? const Padding(
+                                            padding: EdgeInsets.all(16),
+                                            child: CircularProgressIndicator(),
+                                          )
+                                        : const SizedBox.shrink(),
+                                  );
+                                }
+
+                                final p = posts[index];
+                                final distanceKm = _distanceKm(p);
+                                final title = (p.marketTitle ?? '').trim().isNotEmpty
+                                    ? p.marketTitle!.trim()
+                                    : _plainListingText(p.content);
+                                final price = p.marketPrice != null
+                                    ? '€${p.marketPrice!.toStringAsFixed(2)}'
+                                    : l10n.tr('price_on_request');
+
+                                return InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () => context.push('/foods/${p.id}'),
+                                  child: Ink(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.black12),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        SizedBox(
+                                          height: 112,
+                                          child: ClipRRect(
+                                            borderRadius: const BorderRadius.vertical(
+                                              top: Radius.circular(12),
+                                            ),
+                                            child: Container(
+                                              width: double.infinity,
+                                              color: Colors.grey.shade200,
+                                              padding: const EdgeInsets.all(6),
+                                              child: p.imageUrl != null && p.imageUrl!.isNotEmpty
+                                                  ? Image.network(
+                                                      p.imageUrl!,
+                                                      fit: BoxFit.contain,
+                                                      alignment: Alignment.center,
+                                                    )
+                                                  : const Icon(Icons.fastfood, size: 40),
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      Padding(
-                                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              title,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(fontWeight: FontWeight.w600),
-                                            ),
-                                            if (((p.authorBusinessName ?? p.authorName) ?? '').trim().isNotEmpty) ...[
-                                              const SizedBox(height: 4),
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
                                               Text(
-                                                ((p.authorBusinessName ?? p.authorName) ?? '').trim(),
+                                                title,
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(fontWeight: FontWeight.w600),
+                                              ),
+                                              if (((p.authorBusinessName ?? p.authorName) ?? '').trim().isNotEmpty) ...[
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  ((p.authorBusinessName ?? p.authorName) ?? '').trim(),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey.shade700,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                price,
+                                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                foodCategoryLabel(p.marketCategory ?? ''),
                                                 style: TextStyle(
                                                   fontSize: 12,
                                                   color: Colors.grey.shade700,
-                                                  fontWeight: FontWeight.w600,
                                                 ),
                                               ),
-                                            ],
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              price,
-                                              style: const TextStyle(fontWeight: FontWeight.bold),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              foodCategoryLabel(p.marketCategory ?? ''),
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade700,
-                                              ),
-                                            ),
-                                            if ((p.authorCity ?? '').trim().isNotEmpty ||
-                                                (p.authorZipcode ?? '').trim().isNotEmpty ||
-                                                distanceKm != null) ...[
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                [
-                                                  if ((p.authorCity ?? '').trim().isNotEmpty)
-                                                    p.authorCity!.trim(),
-                                                  if ((p.authorCity ?? '').trim().isEmpty &&
-                                                      (p.authorZipcode ?? '').trim().isNotEmpty)
-                                                    p.authorZipcode!.trim(),
-                                                  if (distanceKm != null)
-                                                    '${distanceKm.toStringAsFixed(1)} km',
-                                                ].join(' • '),
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.grey.shade600,
+                                              if ((p.authorCity ?? '').trim().isNotEmpty ||
+                                                  (p.authorZipcode ?? '').trim().isNotEmpty ||
+                                                  distanceKm != null) ...[
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  [
+                                                    if ((p.authorCity ?? '').trim().isNotEmpty)
+                                                      p.authorCity!.trim(),
+                                                    if ((p.authorCity ?? '').trim().isEmpty &&
+                                                        (p.authorZipcode ?? '').trim().isNotEmpty)
+                                                      p.authorZipcode!.trim(),
+                                                    if (distanceKm != null)
+                                                      '${distanceKm.toStringAsFixed(1)} km',
+                                                  ].join(' • '),
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.grey.shade600,
+                                                  ),
                                                 ),
-                                              ),
+                                              ],
                                             ],
-                                          ],
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              );
-                                },
-                              );
-                            },
-                          ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
           ),
         ],
       ),

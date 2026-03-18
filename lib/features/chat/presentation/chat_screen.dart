@@ -30,12 +30,15 @@ class _ChatScreenState extends State<ChatScreen> {
       ChatAttachmentService(_db);
   final _textCtrl = TextEditingController();
   final _imagePicker = ImagePicker();
+  late final ScrollController _scrollCtrl;
 
   bool _loading = true;
   bool _sending = false;
   String? _error;
 
   List<Map<String, dynamic>> _messages = [];
+  bool _hasOlderMessages = true;
+  bool _loadingOlder = false;
 
   String _otherName = 'Chat';
   String? _otherUserId;
@@ -47,11 +50,13 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollCtrl = ScrollController()..addListener(_onScroll);
     _init();
   }
 
   @override
   void dispose() {
+    _scrollCtrl.dispose();
     final ch = _msgChannel;
     _msgChannel = null;
     if (ch != null) {
@@ -59,6 +64,13 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     _textCtrl.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_loadingOlder || !_hasOlderMessages) return;
+    if (_scrollCtrl.position.pixels <= 200) {
+      _loadOlderMessages();
+    }
   }
 
   Future<void> _init() async {
@@ -112,11 +124,41 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _reloadMessages() async {
     final rows = await _service.getMessages(
       conversationId: widget.conversationId,
-      limit: 200,
+      limit: 50,
     );
 
     if (!mounted) return;
-    setState(() => _messages = rows.reversed.toList());
+    setState(() {
+      _messages = rows.reversed.toList();
+      _hasOlderMessages = rows.length == 50;
+    });
+  }
+
+  Future<void> _loadOlderMessages() async {
+    if (_loadingOlder || !_hasOlderMessages) return;
+    if (_messages.isEmpty) return;
+
+    setState(() => _loadingOlder = true);
+    try {
+      // The oldest message is at index 0 (reversed list: oldest first, newest last)
+      final oldestCreatedAt = _messages.first['created_at'] as String?;
+      final rows = await _service.getMessages(
+        conversationId: widget.conversationId,
+        limit: 50,
+        beforeIso: oldestCreatedAt,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        // Prepend older messages (they come newest-first from RPC, so reverse)
+        _messages = [...rows.reversed, ..._messages];
+        _hasOlderMessages = rows.length == 50;
+      });
+    } catch (_) {
+      // silently ignore
+    } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
   }
 
   void _subscribeMessagesRealtime() {
@@ -386,10 +428,36 @@ class _ChatScreenState extends State<ChatScreen> {
                   children: [
                     Expanded(
                       child: ListView.builder(
+                        controller: _scrollCtrl,
                         padding: const EdgeInsets.all(12),
-                        itemCount: _messages.length,
+                        itemCount: _messages.length + (_loadingOlder ? 1 : 0),
                         itemBuilder: (context, i) {
-                          final m = _messages[i];
+                          // Show "loading older" indicator at top
+                          if (_loadingOlder && i == 0) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Loading older messages...',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+
+                          final msgIndex = _loadingOlder ? i - 1 : i;
+                          final m = _messages[msgIndex];
                           final senderId = m['sender_id'] as String?;
                           final isMe = senderId != null && senderId == myId;
                           final payload = ChatMessageCodec.decode(

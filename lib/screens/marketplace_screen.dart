@@ -19,6 +19,8 @@ class MarketplaceScreen extends StatefulWidget {
 }
 
 class _MarketplaceScreenState extends State<MarketplaceScreen> {
+  static const int _kPageSize = 20;
+
   bool _loading = true;
   String? _error;
   String _selectedCategory = 'all';
@@ -26,7 +28,14 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   String _sortBy = 'date_desc';
   String _search = '';
   final TextEditingController _searchCtrl = TextEditingController();
-  List<Post> _posts = [];
+
+  // Raw server rows, accumulated across pages
+  List<Map<String, dynamic>> _rawRows = [];
+  int _page = 0;
+  bool _hasMore = true;
+  bool _loadingMore = false;
+  late final ScrollController _scrollCtrl;
+
   double? _meLat;
   double? _meLng;
   bool _showFilters = false;
@@ -89,9 +98,24 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _scrollCtrl = ScrollController()..addListener(_onScroll);
+    _load();
+  }
+
+  @override
   void dispose() {
+    _scrollCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_loadingMore || !_hasMore) return;
+    if (_scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 400) {
+      _loadMore();
+    }
   }
 
   String _intentLabel(String? intent) {
@@ -193,16 +217,52 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
+  /// Compute the filtered + sorted list from raw server rows.
+  List<Post> get _filteredPosts {
+    final rows = _rawRows;
+    var items = rows.map((e) => Post.fromMap(e)).toList();
+
+    if (_selectedCategory != 'all') {
+      items = items
+          .where((p) => (p.marketCategory ?? '').trim() == _selectedCategory)
+          .toList();
+    }
+
+    if (_selectedIntent != 'all') {
+      items = items.where((p) {
+        final intent = (p.marketIntent ?? '').trim();
+        if (intent.isNotEmpty) {
+          return intent == _selectedIntent;
+        }
+        return _matchesIntentByContent(p, _selectedIntent);
+      }).toList();
+    }
+
+    final q = _search.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      items = items.where((p) {
+        final title = (p.marketTitle ?? '').toLowerCase();
+        final content = p.content.toLowerCase();
+        final seller = (p.authorName ?? '').toLowerCase();
+        final category = marketCategoryLabel(p.marketCategory ?? '').toLowerCase();
+        return title.contains(q) ||
+            content.contains(q) ||
+            seller.contains(q) ||
+            category.contains(q);
+      }).toList();
+    }
+
+    _sortItems(items);
+    return items;
   }
 
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
+      _rawRows = [];
+      _page = 0;
+      _hasMore = true;
     });
 
     try {
@@ -222,48 +282,16 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           .select(PostService.postSelect)
           .eq('post_type', 'market')
           .order('created_at', ascending: false)
-          .limit(120);
+          .range(0, _kPageSize - 1);
 
       final rows = await PostService(Supabase.instance.client)
           .excludeUnavailableAuthorRows((data as List).cast<Map<String, dynamic>>());
 
-      var items = rows.map((e) => Post.fromMap(e)).toList();
-
-      if (_selectedCategory != 'all') {
-        items = items
-            .where((p) => (p.marketCategory ?? '').trim() == _selectedCategory)
-            .toList();
-      }
-
-      if (_selectedIntent != 'all') {
-        items = items.where((p) {
-          final intent = (p.marketIntent ?? '').trim();
-          if (intent.isNotEmpty) {
-            return intent == _selectedIntent;
-          }
-          return _matchesIntentByContent(p, _selectedIntent);
-        }).toList();
-      }
-
-      final q = _search.trim().toLowerCase();
-      if (q.isNotEmpty) {
-        items = items.where((p) {
-          final title = (p.marketTitle ?? '').toLowerCase();
-          final content = p.content.toLowerCase();
-          final seller = (p.authorName ?? '').toLowerCase();
-          final category = marketCategoryLabel(p.marketCategory ?? '').toLowerCase();
-          return title.contains(q) ||
-              content.contains(q) ||
-              seller.contains(q) ||
-              category.contains(q);
-        }).toList();
-      }
-
-      _sortItems(items);
-
       if (!mounted) return;
       setState(() {
-        _posts = items;
+        _rawRows = rows;
+        _page = 1;
+        _hasMore = rows.length == _kPageSize;
       });
     } catch (e) {
       if (!mounted) return;
@@ -272,6 +300,37 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
       if (mounted) {
         setState(() => _loading = false);
       }
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+
+    try {
+      final from = _page * _kPageSize;
+      final to = from + _kPageSize - 1;
+
+      final data = await Supabase.instance.client
+          .from('posts')
+          .select(PostService.postSelect)
+          .eq('post_type', 'market')
+          .order('created_at', ascending: false)
+          .range(from, to);
+
+      final rows = await PostService(Supabase.instance.client)
+          .excludeUnavailableAuthorRows((data as List).cast<Map<String, dynamic>>());
+
+      if (!mounted) return;
+      setState(() {
+        _rawRows = [..._rawRows, ...rows];
+        _page++;
+        _hasMore = rows.length == _kPageSize;
+      });
+    } catch (_) {
+      // silently ignore load-more errors
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
@@ -448,24 +507,58 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
                     ? Center(child: Text(l10n.tr('error_with_detail', args: {'error': '$_error'})))
-                    : _posts.isEmpty
-                        ? Center(child: Text(l10n.tr('no_marketplace_posts_found')))
-                        : RefreshIndicator(
-                            onRefresh: _load,
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                return GridView.builder(
-                                  padding: const EdgeInsets.all(12),
-                                  gridDelegate:
-                                      SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: _gridCount(constraints.maxWidth),
-                                    childAspectRatio: _gridAspectRatio(constraints.maxWidth),
-                                    crossAxisSpacing: 10,
-                                    mainAxisSpacing: 10,
-                                  ),
-                                  itemCount: _posts.length,
-                                  itemBuilder: (context, index) {
-                                final p = _posts[index];
+                    : RefreshIndicator(
+                        onRefresh: _load,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final posts = _filteredPosts;
+                            final showFooter = _loadingMore || _hasMore;
+                            final itemCount = posts.isEmpty
+                                ? 1
+                                : posts.length + (showFooter ? 1 : 0);
+
+                            if (posts.isEmpty) {
+                              return GridView.builder(
+                                controller: _scrollCtrl,
+                                padding: const EdgeInsets.all(12),
+                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: _gridCount(constraints.maxWidth),
+                                  childAspectRatio: _gridAspectRatio(constraints.maxWidth),
+                                  crossAxisSpacing: 10,
+                                  mainAxisSpacing: 10,
+                                ),
+                                itemCount: 1,
+                                itemBuilder: (context, index) => Center(
+                                  child: Text(l10n.tr('no_marketplace_posts_found')),
+                                ),
+                              );
+                            }
+
+                            return GridView.builder(
+                              controller: _scrollCtrl,
+                              padding: const EdgeInsets.all(12),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: _gridCount(constraints.maxWidth),
+                                childAspectRatio: _gridAspectRatio(constraints.maxWidth),
+                                crossAxisSpacing: 10,
+                                mainAxisSpacing: 10,
+                              ),
+                              itemCount: itemCount,
+                              itemBuilder: (context, index) {
+                                // Footer item
+                                if (index >= posts.length) {
+                                  return Center(
+                                    child: _loadingMore
+                                        ? const Padding(
+                                            padding: EdgeInsets.all(16),
+                                            child: CircularProgressIndicator(),
+                                          )
+                                        : const SizedBox.shrink(),
+                                  );
+                                }
+
+                                final p = posts[index];
                                 final myId = Supabase.instance.client.auth.currentUser?.id;
                                 final canSendOffer = myId != null && p.userId != myId;
                                 final title = (p.marketTitle ?? '').trim().isNotEmpty
@@ -621,11 +714,11 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                                     ),
                                   ),
                                 );
-                                  },
-                                );
                               },
-                            ),
-                          ),
+                            );
+                          },
+                        ),
+                      ),
           ),
         ],
       ),

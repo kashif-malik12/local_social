@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/localization/app_localizations.dart';
 import '../core/food_categories.dart';
 import '../models/post_model.dart';
 import '../services/mention_service.dart';
@@ -544,6 +545,7 @@ class _FoodAdDetailScreenState extends State<FoodAdDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isFrench = context.l10n.isFrench;
     final p = _post;
     final theme = Theme.of(context);
 
@@ -625,7 +627,7 @@ class _FoodAdDetailScreenState extends State<FoodAdDetailScreen> {
                               'Location: ${((p.authorCity ?? '').trim().isNotEmpty ? p.authorCity!.trim() : p.authorZipcode!.trim())}',
                             ),
                           if ((p.marketCategory ?? '').isNotEmpty)
-                            Text('Category: ${foodCategoryLabel(p.marketCategory!)}'),
+                            Text('${isFrench ? 'Catégorie' : 'Category'}: ${foodCategoryLabel(p.marketCategory!, isFrench: isFrench)}'),
                           const SizedBox(height: 16),
                           Row(
                             children: [

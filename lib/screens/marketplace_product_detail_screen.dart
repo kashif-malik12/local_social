@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/localization/app_localizations.dart';
 import '../core/market_categories.dart';
 import '../models/post_model.dart';
 import '../services/mention_service.dart';
@@ -404,6 +405,7 @@ class _MarketplaceProductDetailScreenState
 
   @override
   Widget build(BuildContext context) {
+    final isFrench = context.l10n.isFrench;
     final p = _post;
     final myId = Supabase.instance.client.auth.currentUser?.id;
     final canSendOffer = p != null && myId != null && p.userId != myId;
@@ -498,7 +500,7 @@ class _MarketplaceProductDetailScreenState
                                 const SizedBox(height: 8),
                               if ((p.marketCategory ?? '').isNotEmpty)
                                 Text(
-                                  'Category: ${marketCategoryLabel(p.marketCategory!)}',
+                                  '${isFrench ? 'Catégorie' : 'Category'}: ${marketCategoryLabel(p.marketCategory!, isFrench: isFrench)}',
                                 ),
                               if ((p.marketIntent ?? '').isNotEmpty)
                                 Text('Type: ${_intentLabel(p.marketIntent)}'),

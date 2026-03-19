@@ -21,8 +21,8 @@ const List<String> businessMainCategories = [
   'other',
 ];
 
-String businessCategoryLabel(String value) {
-  return localizedBusinessCategoryLabel(value);
+String businessCategoryLabel(String value, {bool isFrench = false}) {
+  return localizedBusinessCategoryLabel(value, isFrench: isFrench);
 }
 
 String localizedBusinessCategoryLabel(String value, {bool isFrench = false}) {

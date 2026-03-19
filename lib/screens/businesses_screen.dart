@@ -19,6 +19,7 @@ class BusinessesScreen extends StatefulWidget {
 class _BusinessesScreenState extends State<BusinessesScreen> {
   static const int _kPageSize = 30;
 
+  bool _isFrench = false;
   bool _loading = true;
   String? _error;
   String _search = '';
@@ -90,7 +91,7 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
             (r['bio'] ?? '').toString().toLowerCase().contains(q) ||
             (r['business_profile'] ?? '').toString().toLowerCase().contains(q) ||
             (r['city'] ?? '').toString().toLowerCase().contains(q) ||
-            businessCategoryLabel((r['business_type'] ?? '').toString())
+            businessCategoryLabel((r['business_type'] ?? '').toString(), isFrench: _isFrench)
                 .toLowerCase()
                 .contains(q);
       }).toList();
@@ -238,6 +239,7 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    _isFrench = l10n.isFrench;
     final businesses = _filteredBusinesses;
 
     return Scaffold(
@@ -281,7 +283,7 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
               items: [
                 DropdownMenuItem(value: 'all', child: Text(l10n.tr('all_categories'))),
                 ...businessMainCategories.map(
-                  (c) => DropdownMenuItem(value: c, child: Text(businessCategoryLabel(c))),
+                  (c) => DropdownMenuItem(value: c, child: Text(businessCategoryLabel(c, isFrench: _isFrench))),
                 ),
               ],
               onChanged: (v) {
@@ -407,7 +409,7 @@ class _BusinessesScreenState extends State<BusinessesScreen> {
                                             ),
                                           ),
                                         Text(
-                                          '${(b['business_type'] ?? '').toString().isNotEmpty ? businessCategoryLabel((b['business_type'] ?? '').toString()) : l10n.tr('business')}'
+                                          '${(b['business_type'] ?? '').toString().isNotEmpty ? businessCategoryLabel((b['business_type'] ?? '').toString(), isFrench: _isFrench) : l10n.tr('business')}'
                                           '${dist != null ? ' • ${dist.toStringAsFixed(1)} km' : ''}'
                                           '${(b['city'] ?? '').toString().isNotEmpty ? ' • ${(b['city'] ?? '').toString()}' : ''}',
                                         ),

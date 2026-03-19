@@ -96,11 +96,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // ❌ Not logged in → must be on auth pages or public pages
       if (!loggedIn) {
-        return (isAuth || isResetPassword || isAdminRoute || isPublicPage) ? null : '/login';
+        return (isAuth || isResetPassword || isPublicPage) ? null : '/login';
       }
 
-      // 🔁 Logged in → block auth pages
-      if (isAdminRoute) return null;
+      // 🔐 Admin routes — require is_admin = true in DB
+      if (isAdminRoute) {
+        try {
+          final row = await Supabase.instance.client
+              .from('profiles')
+              .select('is_admin')
+              .eq('id', user.id)
+              .maybeSingle()
+              .timeout(const Duration(seconds: 5));
+          if (row?['is_admin'] != true) return '/feed';
+        } catch (_) {
+          return '/feed';
+        }
+        return null;
+      }
 
       // Allow /profile always
       if (isProfile || isResetPassword) return null;

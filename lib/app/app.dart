@@ -136,18 +136,56 @@ class _AppState extends ConsumerState<App> {
         ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: const Color(0xFFF0E6D5),
-        selectedColor: const Color(0xFF0F766E).withValues(alpha: 0.16),
         disabledColor: const Color(0xFFE7E0D2),
         side: BorderSide.none,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         labelStyle: const TextStyle(fontWeight: FontWeight.w600),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        // Use color (WidgetStateProperty) to control background per state —
+        // avoids the default white hover/press overlay from Material 3.
+        color: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return const Color(0xFFE7E0D2);
+          }
+          if (states.contains(WidgetState.selected)) {
+            if (states.contains(WidgetState.pressed)) {
+              return const Color(0xFF0F766E).withValues(alpha: 0.26);
+            }
+            if (states.contains(WidgetState.hovered)) {
+              return const Color(0xFF0F766E).withValues(alpha: 0.22);
+            }
+            return const Color(0xFF0F766E).withValues(alpha: 0.16);
+          }
+          if (states.contains(WidgetState.pressed)) {
+            return const Color(0xFFDDCCB5);
+          }
+          if (states.contains(WidgetState.hovered)) {
+            return const Color(0xFFE6D8C5);
+          }
+          return const Color(0xFFF0E6D5);
+        }),
       ),
       filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        style: ButtonStyle(
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+          // Dark overlay so hover darkens slightly instead of flashing white
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) {
+              return Colors.black.withValues(alpha: 0.12);
+            }
+            if (states.contains(WidgetState.hovered)) {
+              return Colors.black.withValues(alpha: 0.07);
+            }
+            if (states.contains(WidgetState.focused)) {
+              return Colors.black.withValues(alpha: 0.10);
+            }
+            return Colors.transparent;
+          }),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -155,6 +193,8 @@ class _AppState extends ConsumerState<App> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           side: BorderSide(color: colorScheme.outlineVariant),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          // Teal tint on hover instead of white
+          overlayColor: const Color(0xFF0F766E).withValues(alpha: 0.07),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

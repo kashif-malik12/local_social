@@ -2,11 +2,16 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'localization/app_localizations.dart';
+
 Future<dynamic> openCreatePostFlow(BuildContext context) async {
   final isPhone = !kIsWeb && MediaQuery.of(context).size.width < 700;
   if (!isPhone) {
     return context.push('/create-post');
   }
+
+  final l10n = context.l10n;
+  final isFrench = l10n.isFrench;
 
   final initialAction = await showModalBottomSheet<String>(
     context: context,
@@ -18,9 +23,9 @@ Future<dynamic> openCreatePostFlow(BuildContext context) async {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Create post',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              Text(
+                isFrench ? 'Créer une publication' : 'Create post',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 14),
               Row(
@@ -28,8 +33,8 @@ Future<dynamic> openCreatePostFlow(BuildContext context) async {
                   Expanded(
                     child: _CreatePostActionTile(
                       icon: Icons.camera_alt_outlined,
-                      title: 'Camera',
-                      subtitle: 'Quick photo or 10s video',
+                      title: isFrench ? 'Appareil photo' : 'Camera',
+                      subtitle: isFrench ? 'Photo rapide ou vidéo 10s' : 'Quick photo or 10s video',
                       onTap: () => Navigator.of(sheetContext).pop('camera'),
                     ),
                   ),
@@ -37,8 +42,8 @@ Future<dynamic> openCreatePostFlow(BuildContext context) async {
                   Expanded(
                     child: _CreatePostActionTile(
                       icon: Icons.edit_outlined,
-                      title: 'Post',
-                      subtitle: 'Open full composer',
+                      title: isFrench ? 'Publication' : 'Post',
+                      subtitle: isFrench ? 'Ouvrir le compositeur' : 'Open full composer',
                       onTap: () => Navigator.of(sheetContext).pop('post'),
                     ),
                   ),
@@ -66,9 +71,9 @@ Future<dynamic> openCreatePostFlow(BuildContext context) async {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Quick camera',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              Text(
+                isFrench ? 'Appareil photo rapide' : 'Quick camera',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 14),
               Row(
@@ -76,8 +81,8 @@ Future<dynamic> openCreatePostFlow(BuildContext context) async {
                   Expanded(
                     child: _CreatePostActionTile(
                       icon: Icons.photo_camera_outlined,
-                      title: 'Photo',
-                      subtitle: 'Take and post now',
+                      title: isFrench ? 'Photo' : 'Photo',
+                      subtitle: isFrench ? 'Prendre et publier' : 'Take and post now',
                       onTap: () => Navigator.of(sheetContext).pop('photo'),
                     ),
                   ),
@@ -85,8 +90,8 @@ Future<dynamic> openCreatePostFlow(BuildContext context) async {
                   Expanded(
                     child: _CreatePostActionTile(
                       icon: Icons.videocam_outlined,
-                      title: '10s Video',
-                      subtitle: 'Record and post now',
+                      title: isFrench ? 'Vidéo 10s' : '10s Video',
+                      subtitle: isFrench ? 'Enregistrer et publier' : 'Record and post now',
                       onTap: () => Navigator.of(sheetContext).pop('video'),
                     ),
                   ),

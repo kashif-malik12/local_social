@@ -49,6 +49,8 @@ class FeedScreen extends StatefulWidget {
 class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   final FeedFilterService _feedFilterService = FeedFilterService(Supabase.instance.client);
 
+  bool _isFrench = false;
+
   // Feed state
   bool _loading = true;
   String? _error;
@@ -492,9 +494,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   String _intentLabel(String? intent) {
     switch (intent) {
       case 'buying':
-        return 'Buying';
+        return _isFrench ? 'Achat' : 'Buying';
       case 'selling':
-        return 'Selling';
+        return _isFrench ? 'Vente' : 'Selling';
       default:
         return (intent ?? '').trim();
     }
@@ -1310,16 +1312,16 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   String? _getPostTypeBadge(Post p) {
     switch (p.postType) {
       case 'market':
-        return 'Marketplace';
+        return _isFrench ? 'Marketplace' : 'Marketplace';
       case 'service_offer':
-        return 'Service Offer';
+        return _isFrench ? 'Offre de service' : 'Service Offer';
       case 'service_request':
-        return 'Service Request';
+        return _isFrench ? 'Demande de service' : 'Service Request';
       case 'lost_found':
-        return 'Lost & Found';
+        return _isFrench ? 'Objets perdus & trouvés' : 'Lost & Found';
       case 'food_ad':
       case 'food':
-        return 'Food Ad';
+        return _isFrench ? 'Annonce alimentaire' : 'Food Ad';
       default:
         return null;
     }
@@ -1331,13 +1333,13 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 
     switch (p.postType) {
       case 'market':
-        return marketCategoryLabel(category);
+        return marketCategoryLabel(category, isFrench: _isFrench);
       case 'service_offer':
       case 'service_request':
-        return serviceCategoryLabel(category);
+        return serviceCategoryLabel(category, isFrench: _isFrench);
       case 'food_ad':
       case 'food':
-        return foodCategoryLabel(category);
+        return foodCategoryLabel(category, isFrench: _isFrench);
       default:
         return null;
     }
@@ -3801,6 +3803,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    _isFrench = context.l10n.isFrench;
     return Scaffold(
       appBar: GlobalAppBar(
         title: 'Allonssy!',

@@ -16,7 +16,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
 
     <application
-        android:label="Allonssy"
+        android:label="Allonssy!"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

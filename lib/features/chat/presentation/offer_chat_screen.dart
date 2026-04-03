@@ -1,8 +1,10 @@
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../widgets/global_bottom_nav.dart';
 
+import '../services/chat_message_codec.dart';
 import '../services/offer_chat_service.dart';
 
 class OfferChatScreen extends StatefulWidget {
@@ -18,7 +20,9 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
   final _db = Supabase.instance.client;
   late final OfferChatService _service = OfferChatService(_db);
   final _textCtrl = TextEditingController();
+  final _focusNode = FocusNode();
   late final ScrollController _scrollCtrl;
+  bool _showEmojiPicker = false;
 
   bool _loading = true;
   bool _busy = false;
@@ -36,6 +40,12 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
   bool _loadingOlder = false;
   RealtimeChannel? _msgChannel;
   RealtimeChannel? _convChannel;
+
+  // Reply state
+  Map<String, dynamic>? _replyToMessage; // {id, text, senderName}
+
+  // Reactions: messageId → {count, liked_by_me}
+  Map<String, Map<String, dynamic>> _reactions = {};
 
   @override
   void initState() {
@@ -59,6 +69,7 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
       _db.removeChannel(convChannel);
     }
 
+    _focusNode.dispose();
     _textCtrl.dispose();
     super.dispose();
   }
@@ -144,6 +155,129 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
       _messages = rows.reversed.toList();
       _hasOlderMessages = rows.length == 50;
     });
+    await _loadReactions();
+  }
+
+  Future<void> _loadReactions() async {
+    if (_messages.isEmpty) return;
+    final ids = _messages
+        .map((m) => m['id']?.toString())
+        .whereType<String>()
+        .toList();
+    if (ids.isEmpty) return;
+    try {
+      final rxns = await _service.fetchReactions(ids);
+      if (!mounted) return;
+      setState(() => _reactions = rxns);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleReaction(String messageId) async {
+    try {
+      await _service.toggleReaction(messageId);
+      await _loadReactions();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Reaction error: $e')),
+      );
+    }
+  }
+
+  void _showMessageActions(Map<String, dynamic> msg, String displayText, bool isMe) {
+    final messageId = msg['id']?.toString() ?? '';
+    final myId = _db.auth.currentUser?.id;
+    final senderId = msg['sender_id'] as String?;
+    final senderName = (senderId == myId) ? 'You' : _postTitle;
+    final rxn = _reactions[messageId];
+    final likedByMe = rxn?['liked_by_me'] == true;
+
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.reply),
+              title: const Text('Reply'),
+              onTap: () {
+                Navigator.pop(context);
+                setState(() {
+                  _replyToMessage = {
+                    'id': messageId,
+                    'text': displayText,
+                    'senderName': senderName,
+                  };
+                  if (_showEmojiPicker) _showEmojiPicker = false;
+                });
+                _focusNode.requestFocus();
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                likedByMe ? Icons.favorite : Icons.favorite_border,
+                color: likedByMe ? Colors.red : null,
+              ),
+              title: Text(likedByMe ? 'Unlike' : 'Like'),
+              onTap: () {
+                Navigator.pop(context);
+                if (messageId.isNotEmpty) _toggleReaction(messageId);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReplyBanner() {
+    final reply = _replyToMessage;
+    if (reply == null) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF4EBDD),
+        border: Border(
+          left: BorderSide(color: Color(0xFF0F766E), width: 3),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.reply, size: 16, color: Color(0xFF0F766E)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  reply['senderName'] ?? '',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F766E),
+                  ),
+                ),
+                Text(
+                  reply['text'] ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            icon: const Icon(Icons.close, size: 16),
+            onPressed: () => setState(() => _replyToMessage = null),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadOlderMessages() async {
@@ -164,6 +298,7 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
         _messages = [...rows.reversed, ..._messages];
         _hasOlderMessages = rows.length == 50;
       });
+      await _loadReactions();
     } catch (_) {
       // silently ignore
     } finally {
@@ -243,11 +378,18 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
 
     setState(() => _busy = true);
     _textCtrl.clear();
+    final reply = _replyToMessage;
+    setState(() => _replyToMessage = null);
 
     try {
       await _service.sendMessage(
         conversationId: widget.conversationId,
-        content: text,
+        content: ChatMessageCodec.encode(
+          text: text,
+          replyToId: reply?['id'] as String?,
+          replyToText: reply?['text'] as String?,
+          replyToSenderName: reply?['senderName'] as String?,
+        ),
       );
       await _reloadMessages();
     } catch (e) {
@@ -630,16 +772,25 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
                                     final isMe = senderId != null && senderId == myId;
                                     final kind = (m['message_type'] as String?) ?? 'text';
                                     final amount = (m['offer_amount'] as num?)?.toDouble();
-                                    final content = (m['content'] as String?) ?? '';
+                                    final rawContent = (m['content'] as String?) ?? '';
                                     final msgReadAt = m['read_at'] as String?;
                                     final msgCreatedAt = m['created_at'] as String?;
+                                    final messageId = m['id']?.toString() ?? '';
+                                    final rxn = _reactions[messageId];
+                                    final likeCount = (rxn?['count'] as int?) ?? 0;
+                                    final likedByMe = rxn?['liked_by_me'] == true;
 
-                                    final text = switch (kind) {
+                                    // Decode text-kind messages through codec for reply support
+                                    final payload = kind == 'text'
+                                        ? ChatMessageCodec.decode(rawContent)
+                                        : null;
+
+                                    final displayText = switch (kind) {
                                       'offer' => 'Made offer: EUR ${amount?.toStringAsFixed(2) ?? '--'}',
                                       'counter' => 'Counter offer: EUR ${amount?.toStringAsFixed(2) ?? '--'}',
                                       'accepted' => 'Offer accepted',
                                       'rejected' => 'Offer rejected',
-                                      _ => content,
+                                      _ => payload?.text ?? rawContent,
                                     };
 
                                     // Format time
@@ -651,12 +802,20 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
                                       } catch (_) {}
                                     }
 
-                                    return Align(
+                                    return GestureDetector(
+                                      onLongPress: () => _showMessageActions(m, displayText, isMe),
+                                      child: Align(
                                       alignment:
                                           isMe ? Alignment.centerRight : Alignment.centerLeft,
                                       child: ConstrainedBox(
                                         constraints: const BoxConstraints(maxWidth: 620),
-                                        child: Container(
+                                        child: Column(
+                                          crossAxisAlignment: isMe
+                                              ? CrossAxisAlignment.end
+                                              : CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
                                           margin: const EdgeInsets.symmetric(vertical: 5),
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 14,
@@ -675,8 +834,44 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
+                                              // Reply quote (text messages only)
+                                              if (payload != null && payload.hasReply) ...[
+                                                Container(
+                                                  margin: const EdgeInsets.only(bottom: 6),
+                                                  padding: const EdgeInsets.symmetric(
+                                                      horizontal: 8, vertical: 6),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black.withValues(alpha: 0.06),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: const Border(
+                                                      left: BorderSide(
+                                                          color: Color(0xFF0F766E), width: 3),
+                                                    ),
+                                                  ),
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        payload.replyToSenderName ?? '',
+                                                        style: const TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.w700,
+                                                          color: Color(0xFF0F766E),
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        payload.replyToText ?? '',
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: const TextStyle(fontSize: 11),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
                                               Text(
-                                                text,
+                                                displayText,
                                                 style: const TextStyle(height: 1.35),
                                               ),
                                               const SizedBox(height: 4),
@@ -705,7 +900,46 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
                                               ),
                                             ],
                                           ),
+                                            ),
+                                            // Like count badge
+                                            if (likeCount > 0)
+                                              Padding(
+                                                padding: const EdgeInsets.only(bottom: 2),
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(
+                                                      horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius: BorderRadius.circular(12),
+                                                    border: Border.all(
+                                                        color: Colors.grey.shade300),
+                                                    boxShadow: const [
+                                                      BoxShadow(
+                                                          color: Color(0x18000000),
+                                                          blurRadius: 4,
+                                                          offset: Offset(0, 1)),
+                                                    ],
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(Icons.favorite,
+                                                          size: 12,
+                                                          color: likedByMe
+                                                              ? Colors.red
+                                                              : Colors.grey.shade500),
+                                                      const SizedBox(width: 3),
+                                                      Text('$likeCount',
+                                                          style: TextStyle(
+                                                              fontSize: 11,
+                                                              color: Colors.grey.shade700)),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
+                                      ),
                                       ),
                                     );
                                   },
@@ -721,31 +955,76 @@ class _OfferChatScreenState extends State<OfferChatScreen> {
                       child: Center(
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 920),
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: _textCtrl,
-                                    textInputAction: TextInputAction.send,
-                                    minLines: 1,
-                                    maxLines: 4,
-                                    onSubmitted: (_) => _send(),
-                                    decoration: const InputDecoration(
-                                      hintText: 'Message about this listing...',
-                                      border: OutlineInputBorder(),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildReplyBanner(),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                                child: Row(
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Emoji',
+                                      onPressed: () {
+                                        if (_showEmojiPicker) {
+                                          _focusNode.requestFocus();
+                                        } else {
+                                          _focusNode.unfocus();
+                                        }
+                                        setState(() => _showEmojiPicker = !_showEmojiPicker);
+                                      },
+                                      icon: Icon(
+                                        _showEmojiPicker
+                                            ? Icons.keyboard
+                                            : Icons.emoji_emotions_outlined,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _textCtrl,
+                                        focusNode: _focusNode,
+                                        textInputAction: TextInputAction.send,
+                                        minLines: 1,
+                                        maxLines: 4,
+                                        onSubmitted: (_) => _send(),
+                                        onTap: () {
+                                          if (_showEmojiPicker) {
+                                            setState(() => _showEmojiPicker = false);
+                                          }
+                                        },
+                                        decoration: const InputDecoration(
+                                          hintText: 'Message about this listing...',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    FilledButton.icon(
+                                      onPressed: _busy ? null : _send,
+                                      icon: const Icon(Icons.send),
+                                      label: const Text('Send'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (_showEmojiPicker)
+                                SizedBox(
+                                  height: 280,
+                                  child: EmojiPicker(
+                                    textEditingController: _textCtrl,
+                                    config: const Config(
+                                      height: 280,
+                                      emojiViewConfig: EmojiViewConfig(
+                                        columns: 8,
+                                        emojiSizeMax: 28,
+                                      ),
+                                      categoryViewConfig: CategoryViewConfig(
+                                        initCategory: Category.SMILEYS,
+                                      ),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 10),
-                                FilledButton.icon(
-                                  onPressed: _busy ? null : _send,
-                                  icon: const Icon(Icons.send),
-                                  label: const Text('Send'),
-                                ),
-                              ],
-                            ),
+                            ],
                           ),
                         ),
                       ),

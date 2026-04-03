@@ -48,3 +48,19 @@ The app currently declares `READ_MEDIA_IMAGES` and `READ_MEDIA_VIDEO` in the And
 **Why**: This lowers Play Console policy friction for photo/video permissions and reduces review risk for future Android releases.
 
 **Priority**: Medium after initial Play Store release.
+
+---
+
+## Post-Launch Play Store Cleanup
+
+**Files**: `play_store_assets/`, `lib/screens/delete_account_screen.dart`, `lib/features/profile/presentation/profile_settings_screen.dart`
+
+The app is now live, but some Play Store and policy surfaces were shipped in their minimum compliant form to unblock release.
+
+**Follow-ups**:
+1. Replace the temporary 7-inch and 10-inch padded screenshots in `play_store_assets/seven_inch_screenshots/` and `play_store_assets/ten_inch_screenshots/` with real tablet captures.
+2. Replace weaker phone screenshots that show empty states with real-data captures for marketplace, services, food, and chat.
+3. Upgrade the account deletion flow from email-request only to a stronger in-app self-service request/delete flow if possible.
+4. Re-review Play Console policy declarations after the stronger deletion flow and better screenshots are in place.
+
+**Priority**: Medium after launch stabilization.

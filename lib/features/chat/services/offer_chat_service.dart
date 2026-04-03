@@ -99,4 +99,48 @@ class OfferChatService {
       'p_conversation_id': conversationId,
     });
   }
+
+  /// Toggle ❤️ on an offer message.
+  Future<void> toggleReaction(String messageId) async {
+    final me = _db.auth.currentUser!.id;
+    final existing = await _db
+        .from('offer_message_reactions')
+        .select('id')
+        .eq('message_id', messageId)
+        .eq('user_id', me)
+        .maybeSingle();
+
+    if (existing != null) {
+      await _db
+          .from('offer_message_reactions')
+          .delete()
+          .eq('message_id', messageId)
+          .eq('user_id', me);
+    } else {
+      await _db.from('offer_message_reactions').insert({
+        'message_id': messageId,
+        'user_id': me,
+      });
+    }
+  }
+
+  /// Returns a map of messageId → {count, likedByMe} for the given message IDs.
+  Future<Map<String, Map<String, dynamic>>> fetchReactions(
+      List<String> messageIds) async {
+    if (messageIds.isEmpty) return {};
+    final me = _db.auth.currentUser!.id;
+    final rows = await _db
+        .from('offer_message_reactions')
+        .select('message_id, user_id')
+        .inFilter('message_id', messageIds);
+
+    final result = <String, Map<String, dynamic>>{};
+    for (final row in (rows as List).cast<Map<String, dynamic>>()) {
+      final msgId = row['message_id'] as String;
+      result.putIfAbsent(msgId, () => {'count': 0, 'liked_by_me': false});
+      result[msgId]!['count'] = (result[msgId]!['count'] as int) + 1;
+      if (row['user_id'] == me) result[msgId]!['liked_by_me'] = true;
+    }
+    return result;
+  }
 }

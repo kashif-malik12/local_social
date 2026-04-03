@@ -1,3 +1,4 @@
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -29,8 +30,10 @@ class _ChatScreenState extends State<ChatScreen> {
   late final ChatAttachmentService _attachmentService =
       ChatAttachmentService(_db);
   final _textCtrl = TextEditingController();
+  final _focusNode = FocusNode();
   final _imagePicker = ImagePicker();
   late final ScrollController _scrollCtrl;
+  bool _showEmojiPicker = false;
 
   bool _loading = true;
   bool _sending = false;
@@ -45,6 +48,12 @@ class _ChatScreenState extends State<ChatScreen> {
   XFile? _selectedImage;
   PlatformFile? _selectedFile;
 
+  // Reply state
+  Map<String, dynamic>? _replyToMessage; // {id, text, senderName}
+
+  // Reactions: messageId → {count, liked_by_me}
+  Map<String, Map<String, dynamic>> _reactions = {};
+
   RealtimeChannel? _msgChannel;
 
   @override
@@ -57,6 +66,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _scrollCtrl.dispose();
+    _focusNode.dispose();
     final ch = _msgChannel;
     _msgChannel = null;
     if (ch != null) {
@@ -132,6 +142,33 @@ class _ChatScreenState extends State<ChatScreen> {
       _messages = rows.reversed.toList();
       _hasOlderMessages = rows.length == 50;
     });
+    await _loadReactions();
+  }
+
+  Future<void> _loadReactions() async {
+    if (_messages.isEmpty) return;
+    final ids = _messages
+        .map((m) => m['id']?.toString())
+        .whereType<String>()
+        .toList();
+    if (ids.isEmpty) return;
+    try {
+      final rxns = await _service.fetchReactions(ids);
+      if (!mounted) return;
+      setState(() => _reactions = rxns);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleReaction(String messageId) async {
+    try {
+      await _service.toggleReaction(messageId);
+      await _loadReactions();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Reaction error: $e')),
+      );
+    }
   }
 
   Future<void> _loadOlderMessages() async {
@@ -140,7 +177,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() => _loadingOlder = true);
     try {
-      // The oldest message is at index 0 (reversed list: oldest first, newest last)
       final oldestCreatedAt = _messages.first['created_at'] as String?;
       final rows = await _service.getMessages(
         conversationId: widget.conversationId,
@@ -150,10 +186,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
       if (!mounted) return;
       setState(() {
-        // Prepend older messages (they come newest-first from RPC, so reverse)
         _messages = [...rows.reversed, ..._messages];
         _hasOlderMessages = rows.length == 50;
       });
+      await _loadReactions();
     } catch (_) {
       // silently ignore
     } finally {
@@ -250,11 +286,13 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _sending = true);
     final image = _selectedImage;
     final file = _selectedFile;
+    final reply = _replyToMessage;
 
     _textCtrl.clear();
     setState(() {
       _selectedImage = null;
       _selectedFile = null;
+      _replyToMessage = null;
     });
 
     try {
@@ -277,6 +315,9 @@ class _ChatScreenState extends State<ChatScreen> {
           imageUrl: imageUrl,
           fileUrl: fileUrl,
           fileName: fileName,
+          replyToId: reply?['id'] as String?,
+          replyToText: reply?['text'] as String?,
+          replyToSenderName: reply?['senderName'] as String?,
         ),
       );
 
@@ -289,6 +330,56 @@ class _ChatScreenState extends State<ChatScreen> {
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  void _showMessageActions(Map<String, dynamic> msg, ChatMessagePayload payload, bool isMe) {
+    final messageId = msg['id']?.toString() ?? '';
+    final previewText = payload.text.trim().isNotEmpty
+        ? payload.text.trim()
+        : payload.hasImage
+            ? '📷 Photo'
+            : '📎 File';
+    final senderName = isMe ? 'You' : _otherName;
+    final rxn = _reactions[messageId];
+    final likedByMe = rxn?['liked_by_me'] == true;
+
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.reply),
+              title: const Text('Reply'),
+              onTap: () {
+                Navigator.pop(context);
+                setState(() {
+                  _replyToMessage = {
+                    'id': messageId,
+                    'text': previewText,
+                    'senderName': senderName,
+                  };
+                  if (_showEmojiPicker) _showEmojiPicker = false;
+                });
+                _focusNode.requestFocus();
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                likedByMe ? Icons.favorite : Icons.favorite_border,
+                color: likedByMe ? Colors.red : null,
+              ),
+              title: Text(likedByMe ? 'Unlike' : 'Like'),
+              onTap: () {
+                Navigator.pop(context);
+                if (messageId.isNotEmpty) _toggleReaction(messageId);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _deleteConversation() async {
@@ -376,95 +467,217 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget _buildReplyBanner() {
+    final reply = _replyToMessage;
+    if (reply == null) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        border: Border(
+          left: BorderSide(color: Theme.of(context).colorScheme.primary, width: 3),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.reply, size: 16, color: Color(0xFF0F766E)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  reply['senderName'] ?? '',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F766E),
+                  ),
+                ),
+                Text(
+                  reply['text'] ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            icon: const Icon(Icons.close, size: 16),
+            onPressed: () => setState(() => _replyToMessage = null),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMessageBubble(
     bool isMe,
     ChatMessagePayload payload, {
     String? createdAt,
     String? readAt,
+    int likeCount = 0,
+    bool likedByMe = false,
   }) {
     final timeStr = _formatTime(createdAt);
     final seen = readAt != null;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: isMe ? Colors.blue.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (payload.text.trim().isNotEmpty) Text(payload.text.trim()),
-          if (payload.hasImage) ...[
-            if (payload.text.trim().isNotEmpty) const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () => _openImageFullscreen(payload.imageUrl!),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.network(payload.imageUrl!, width: 220, fit: BoxFit.cover),
-              ),
-            ),
-          ],
-          if (payload.hasFile) ...[
-            const SizedBox(height: 8),
-            InkWell(
-              onTap: () => _openExternal(payload.fileUrl!),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(10),
+    return Column(
+      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          margin: const EdgeInsets.symmetric(vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          constraints: const BoxConstraints(maxWidth: 300),
+          decoration: BoxDecoration(
+            color: isMe
+                ? Colors.blue.withValues(alpha: 0.15)
+                : Colors.grey.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Reply quote
+              if (payload.hasReply) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                    border: const Border(
+                      left: BorderSide(color: Color(0xFF0F766E), width: 3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        payload.replyToSenderName ?? '',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F766E),
+                        ),
+                      ),
+                      Text(
+                        payload.replyToText ?? '',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Row(
+              ],
+              if (payload.text.trim().isNotEmpty) Text(payload.text.trim()),
+              if (payload.hasImage) ...[
+                if (payload.text.trim().isNotEmpty) const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () => _openImageFullscreen(payload.imageUrl!),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.network(payload.imageUrl!, width: 220, fit: BoxFit.cover),
+                  ),
+                ),
+              ],
+              if (payload.hasFile) ...[
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: () => _openExternal(payload.fileUrl!),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.attach_file, size: 18),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            payload.fileName?.trim().isNotEmpty == true
+                                ? payload.fileName!.trim()
+                                : 'Open file',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              // Timestamp + read receipt
+              if (isMe) ...[
+                const SizedBox(height: 4),
+                Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.attach_file, size: 18),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        payload.fileName?.trim().isNotEmpty == true
-                            ? payload.fileName!.trim()
-                            : 'Open file',
-                        overflow: TextOverflow.ellipsis,
+                    if (timeStr != null)
+                      Text(
+                        timeStr,
+                        style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
                       ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      seen ? Icons.done_all : Icons.done,
+                      size: 14,
+                      color: seen ? const Color(0xFF0F766E) : Colors.grey.shade500,
                     ),
                   ],
                 ),
-              ),
-            ),
-          ],
-          // Timestamp + read receipt row (own messages only)
-          if (isMe) ...[
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (timeStr != null)
-                  Text(
-                    timeStr,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                const SizedBox(width: 4),
-                Icon(
-                  seen ? Icons.done_all : Icons.done,
-                  size: 14,
-                  color: seen ? const Color(0xFF0F766E) : Colors.grey.shade500,
+              ] else if (timeStr != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  timeStr,
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
                 ),
               ],
+            ],
+          ),
+        ),
+        // Like count badge
+        if (likeCount > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x18000000), blurRadius: 4, offset: Offset(0, 1)),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.favorite,
+                    size: 12,
+                    color: likedByMe ? Colors.red : Colors.grey.shade500,
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    '$likeCount',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                  ),
+                ],
+              ),
             ),
-          ] else if (timeStr != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              timeStr,
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-            ),
-          ],
-        ],
-      ),
+          ),
+      ],
     );
   }
 
@@ -519,7 +732,6 @@ class _ChatScreenState extends State<ChatScreen> {
                         padding: const EdgeInsets.all(12),
                         itemCount: _messages.length + (_loadingOlder ? 1 : 0),
                         itemBuilder: (context, i) {
-                          // Show "loading older" indicator at top
                           if (_loadingOlder && i == 0) {
                             return const Padding(
                               padding: EdgeInsets.symmetric(vertical: 8),
@@ -550,15 +762,24 @@ class _ChatScreenState extends State<ChatScreen> {
                           final payload = ChatMessageCodec.decode(
                             (m['content'] as String?) ?? '',
                           );
+                          final messageId = m['id']?.toString() ?? '';
+                          final rxn = _reactions[messageId];
 
-                          return Align(
-                            alignment:
-                                isMe ? Alignment.centerRight : Alignment.centerLeft,
-                            child: _buildMessageBubble(
-                              isMe,
-                              payload,
-                              createdAt: m['created_at'] as String?,
-                              readAt: m['read_at'] as String?,
+                          return GestureDetector(
+                            onLongPress: () =>
+                                _showMessageActions(m, payload, isMe),
+                            child: Align(
+                              alignment: isMe
+                                  ? Alignment.centerRight
+                                  : Alignment.centerLeft,
+                              child: _buildMessageBubble(
+                                isMe,
+                                payload,
+                                createdAt: m['created_at'] as String?,
+                                readAt: m['read_at'] as String?,
+                                likeCount: (rxn?['count'] as int?) ?? 0,
+                                likedByMe: rxn?['liked_by_me'] == true,
+                              ),
                             ),
                           );
                         },
@@ -569,11 +790,28 @@ class _ChatScreenState extends State<ChatScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          _buildReplyBanner(),
                           _buildAttachmentComposerPreview(),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                             child: Row(
                               children: [
+                                IconButton(
+                                  tooltip: 'Emoji',
+                                  onPressed: () {
+                                    if (_showEmojiPicker) {
+                                      _focusNode.requestFocus();
+                                    } else {
+                                      _focusNode.unfocus();
+                                    }
+                                    setState(() => _showEmojiPicker = !_showEmojiPicker);
+                                  },
+                                  icon: Icon(
+                                    _showEmojiPicker
+                                        ? Icons.keyboard
+                                        : Icons.emoji_emotions_outlined,
+                                  ),
+                                ),
                                 IconButton(
                                   tooltip: 'Add photo',
                                   onPressed: _sending ? null : _pickImage,
@@ -587,8 +825,14 @@ class _ChatScreenState extends State<ChatScreen> {
                                 Expanded(
                                   child: TextField(
                                     controller: _textCtrl,
+                                    focusNode: _focusNode,
                                     textInputAction: TextInputAction.send,
                                     onSubmitted: (_) => _send(),
+                                    onTap: () {
+                                      if (_showEmojiPicker) {
+                                        setState(() => _showEmojiPicker = false);
+                                      }
+                                    },
                                     decoration: const InputDecoration(
                                       hintText: 'Message...',
                                       border: OutlineInputBorder(),
@@ -610,6 +854,23 @@ class _ChatScreenState extends State<ChatScreen> {
                               ],
                             ),
                           ),
+                          if (_showEmojiPicker)
+                            SizedBox(
+                              height: 280,
+                              child: EmojiPicker(
+                                textEditingController: _textCtrl,
+                                config: const Config(
+                                  height: 280,
+                                  emojiViewConfig: EmojiViewConfig(
+                                    columns: 8,
+                                    emojiSizeMax: 28,
+                                  ),
+                                  categoryViewConfig: CategoryViewConfig(
+                                    initCategory: Category.SMILEYS,
+                                  ),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),

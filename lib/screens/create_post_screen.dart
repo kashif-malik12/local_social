@@ -1,3 +1,4 @@
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,6 +36,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   static const MethodChannel _cameraChannel = MethodChannel('com.local_social/camera');
 
   final _contentCtrl = TextEditingController();
+  final _contentFocusNode = FocusNode();
+  bool _showEmojiPicker = false;
   final _videoUrlCtrl = TextEditingController();
   final _marketTitleCtrl = TextEditingController();
   final _marketPriceCtrl = TextEditingController();
@@ -78,6 +81,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   @override
   void dispose() {
     _contentCtrl.dispose();
+    _contentFocusNode.dispose();
     _videoUrlCtrl.dispose();
     _marketTitleCtrl.dispose();
     _marketPriceCtrl.dispose();
@@ -731,13 +735,56 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 children: [
                   TextField(
                     controller: _contentCtrl,
+                    focusNode: _contentFocusNode,
                     maxLines: 5,
+                    onTap: () {
+                      if (_showEmojiPicker) {
+                        setState(() => _showEmojiPicker = false);
+                      }
+                    },
                     decoration: InputDecoration(
                       labelText: l10n.tr('what_is_happening'),
                       border: OutlineInputBorder(),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      tooltip: 'Emoji',
+                      icon: Icon(
+                        _showEmojiPicker
+                            ? Icons.keyboard
+                            : Icons.emoji_emotions_outlined,
+                      ),
+                      onPressed: () {
+                        if (_showEmojiPicker) {
+                          _contentFocusNode.requestFocus();
+                        } else {
+                          _contentFocusNode.unfocus();
+                        }
+                        setState(() => _showEmojiPicker = !_showEmojiPicker);
+                      },
+                    ),
+                  ),
+                  if (_showEmojiPicker)
+                    SizedBox(
+                      height: 280,
+                      child: EmojiPicker(
+                        textEditingController: _contentCtrl,
+                        config: const Config(
+                          height: 280,
+                          emojiViewConfig: EmojiViewConfig(
+                            columns: 8,
+                            emojiSizeMax: 28,
+                          ),
+                          categoryViewConfig: CategoryViewConfig(
+                            initCategory: Category.SMILEYS,
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
                       OutlinedButton.icon(

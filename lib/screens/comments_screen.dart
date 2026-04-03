@@ -1,3 +1,4 @@
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -28,6 +29,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
 
   bool _loading = true;
   bool _isSending = false;
+  bool _showEmojiPicker = false;
   String? _error;
   Post? _post;
   List<Map<String, dynamic>> _comments = [];
@@ -497,7 +499,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
     final me = Supabase.instance.client.auth.currentUser?.id;
     final theme = Theme.of(context);
     final visibleComments = _visibleComments();
-    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0 || _showEmojiPicker;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Comments')),
@@ -546,7 +548,10 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 ),
                 SafeArea(
                   top: false,
-                  child: Padding(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                    Padding(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                     child: Container(
                       padding: const EdgeInsets.all(10),
@@ -631,6 +636,22 @@ class _CommentsScreenState extends State<CommentsScreen> {
                           Row(
                             children: [
                               IconButton(
+                                tooltip: 'Emoji',
+                                onPressed: () {
+                                  if (_showEmojiPicker) {
+                                    _inputFocus.requestFocus();
+                                  } else {
+                                    _inputFocus.unfocus();
+                                  }
+                                  setState(() => _showEmojiPicker = !_showEmojiPicker);
+                                },
+                                icon: Icon(
+                                  _showEmojiPicker
+                                      ? Icons.keyboard
+                                      : Icons.emoji_emotions_outlined,
+                                ),
+                              ),
+                              IconButton(
                                 onPressed: _pickMentions,
                                 tooltip: 'Tag connections',
                                 icon: const Icon(Icons.alternate_email),
@@ -643,6 +664,11 @@ class _CommentsScreenState extends State<CommentsScreen> {
                                   maxLines: 3,
                                   textInputAction: TextInputAction.send,
                                   onSubmitted: (_) => _send(),
+                                  onTap: () {
+                                    if (_showEmojiPicker) {
+                                      setState(() => _showEmojiPicker = false);
+                                    }
+                                  },
                                   decoration: InputDecoration(
                                     hintText: _replyToCommentId == null
                                         ? 'Write a comment...'
@@ -674,12 +700,30 @@ class _CommentsScreenState extends State<CommentsScreen> {
                                       : (_replyToCommentId == null ? 'Send' : 'Reply'),
                                 ),
                               ),
-
                             ],
                           ),
                         ],
                       ),
                     ),
+                  ),
+                    if (_showEmojiPicker)
+                      SizedBox(
+                        height: 280,
+                        child: EmojiPicker(
+                          textEditingController: _ctrl,
+                          config: const Config(
+                            height: 280,
+                            emojiViewConfig: EmojiViewConfig(
+                              columns: 8,
+                              emojiSizeMax: 28,
+                            ),
+                            categoryViewConfig: CategoryViewConfig(
+                              initCategory: Category.SMILEYS,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

@@ -6,16 +6,23 @@ class ChatMessagePayload {
     this.imageUrl,
     this.fileUrl,
     this.fileName,
+    this.replyToId,
+    this.replyToText,
+    this.replyToSenderName,
   });
 
   final String text;
   final String? imageUrl;
   final String? fileUrl;
   final String? fileName;
+  final String? replyToId;
+  final String? replyToText;
+  final String? replyToSenderName;
 
   bool get hasImage => (imageUrl ?? '').trim().isNotEmpty;
   bool get hasFile => (fileUrl ?? '').trim().isNotEmpty;
   bool get hasAttachments => hasImage || hasFile;
+  bool get hasReply => (replyToId ?? '').trim().isNotEmpty;
 }
 
 class ChatMessageCodec {
@@ -26,12 +33,18 @@ class ChatMessageCodec {
     String? imageUrl,
     String? fileUrl,
     String? fileName,
+    String? replyToId,
+    String? replyToText,
+    String? replyToSenderName,
   }) {
     final payload = <String, dynamic>{
       'text': text,
       'image_url': imageUrl,
       'file_url': fileUrl,
       'file_name': fileName,
+      'reply_to_id': replyToId,
+      'reply_to_text': replyToText,
+      'reply_to_sender': replyToSenderName,
     };
     return '$_prefix${jsonEncode(payload)}';
   }
@@ -52,6 +65,9 @@ class ChatMessageCodec {
         imageUrl: payload['image_url']?.toString(),
         fileUrl: payload['file_url']?.toString(),
         fileName: payload['file_name']?.toString(),
+        replyToId: payload['reply_to_id']?.toString(),
+        replyToText: payload['reply_to_text']?.toString(),
+        replyToSenderName: payload['reply_to_sender']?.toString(),
       );
     } catch (_) {
       return ChatMessagePayload(text: raw);

@@ -442,6 +442,34 @@ All five display locations use this rule:
 
 ---
 
+## Chat Reply + Like (2026-04-03)
+
+### Reply to specific message
+- Reply context (id, text preview, sender name) is stored in the message payload via `ChatMessageCodec` — no DB changes needed. Old messages without reply fields decode gracefully (null).
+- Long press any message → action sheet with "Reply" + "Like/Unlike" options.
+- Reply shows a teal-bordered banner above the input bar with the quoted sender + text. Cancel via ✕.
+- Sent message shows an embedded reply quote at the top of the bubble.
+- Both `chat_screen.dart` and `offer_chat_screen.dart` support reply. Offer chat now uses `ChatMessageCodec.encode()` for text messages.
+
+### Like a message (❤️)
+- Migration `supabase/migrations/20260403120000_add_message_reactions.sql` creates `message_reactions` and `offer_message_reactions` tables, each with `UNIQUE(message_id, user_id)` (one like per user per message) and full RLS.
+- `ChatService.toggleReaction()` / `fetchReactions()` and matching methods on `OfferChatService`.
+- Reactions are fetched after every `_reloadMessages()` call and stored in `_reactions` map.
+- Liked messages show a small ❤️ {count} badge below the bubble; the heart is red if liked by me.
+- **Apply migration**: SSH to VPS and run `docker exec supabase-db psql -U postgres -d postgres -f /dev/stdin < supabase/migrations/20260403120000_add_message_reactions.sql`
+
+---
+
+## Emoji Picker (2026-04-03)
+
+- Added `emoji_picker_flutter: ^4.4.0` to `pubspec.yaml`.
+- Emoji button (`Icons.emoji_emotions_outlined`) added to the input bar of `chat_screen.dart` and `offer_chat_screen.dart`, and below the content TextField in `create_post_screen.dart`.
+- Tapping the button hides the keyboard and shows a 280px `EmojiPicker` panel below the input area; tapping the button again or tapping the text field restores the keyboard and hides the picker.
+- The picker inserts emojis directly at the cursor position via the shared `TextEditingController`.
+- Config: 8 columns, 28px emoji size, opens on SMILEYS category.
+
+---
+
 ## App Name Fix (2026-03-19)
 
 - `android:label` in `AndroidManifest.xml` was set to `"Allonssy"` (without `!`) in a pre-release cleanup commit.

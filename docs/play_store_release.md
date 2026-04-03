@@ -150,6 +150,7 @@ Before taking screenshots:
 | 1.0.1+2 | 2 | 2026-03-19 | Google Sign-In SHA fix for Play Store (Play Store delivery SHA-1 added to Google Cloud Console Android OAuth, SHA-256 to Firebase). Debug SHA-1 added as a second Android OAuth client. |
 | 1.0.2+3 | 3 | 2026-03-19 | French translations for marketplace/gigs/foods/restaurants/businesses categories, post types, create post launcher, detail screens. Chat read receipt ticks + timestamps. Banned emails admin feature. |
 | 1.0.3+4 | 4 | 2026-03-19 | Fixed app name showing "Allonssy" instead of "Allonssy!" after install (restored `android:label="Allonssy!"`). |
+| 1.1.0+5 | 5 | 2026-04-03 | Emoji picker in chat, offer chat, comments, and create post. Message reply (long-press → reply with quoted bubble). Message likes (long-press → ❤️). **First production release.** |
 
 ---
 

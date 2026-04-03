@@ -154,6 +154,24 @@ Before taking screenshots:
 
 ---
 
+## Play Store Reviewer Test Account
+
+Created 2026-04-03 for Play Console App Access / Google review.
+
+| Field | Value |
+|-------|-------|
+| Email | `reviewer@allonssy.com` |
+| Password | `AllonssyReview2026!` |
+| Name | Allonssy Reviewer |
+| City | Évry, France |
+| Coordinates | 48.6239, 2.4283 |
+| Language | English |
+| Auth user ID | `129866d5-95f6-4df0-b53e-cc447f099c56` |
+
+Profile is pre-completed — reviewer lands directly on the feed. Do not delete this account.
+
+---
+
 ## Release Checklist (for future releases)
 
 1. Bump `version` in `pubspec.yaml` (name+number).
